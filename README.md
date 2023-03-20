@@ -8,6 +8,7 @@ Toolchain for seamlessly generating efficient Simulink-to-Python binding and gym
 ## Table of Contents
 - [Slxpy](#slxpy)
   - [Table of Contents](#table-of-contents)
+  - [Flowchart](#flowchart)
   - [Features](#features)
   - [Prerequisities \& Installation \& Quick start](#prerequisities--installation--quick-start)
     - [MATLAB](#matlab)
@@ -32,7 +33,40 @@ Toolchain for seamlessly generating efficient Simulink-to-Python binding and gym
   - [Implementation note](#implementation-note)
     - [About stack allocation](#about-stack-allocation)
     - [About model class Copy/Move Constructible/Assignable](#about-model-class-copymove-constructibleassignable)
-  - [Flowchart](#flowchart)
+
+
+## Flowchart
+The flowchart briefly describes common workflow for your smoother integration.
+
+```mermaid
+graph TD;
+    Learn[Learn fundamentals];
+    Prerequisities[Prerequisities];
+    Installation[Installation];
+    Model[Prepare model];
+    Create[Create project];
+    Setup["(MATLAB) slxpy.setup_config(project_path)"];
+    Codegen["(MATLAB) slxpy.codegen(project_path)"];
+    Generate["(CLI) slxpy generate"];
+    Build["(CLI) python setup.py build"];
+    Test["Test & Done"];
+
+    MTC(["On model.toml change"]);
+    MC(["On model change"]);
+    ETC(["On env.toml change"]);
+
+    subgraph Preparation
+    Prerequisities --> Installation;
+    end
+    Installation --> Create;
+    subgraph Main workflow
+        Create --> Setup --> Codegen --> Generate --> Build --> Test;
+        Model --> Setup;
+        MTC --Rerun--> Setup;
+        MC --Rerun--> Codegen;
+        ETC --Rerun--> Generate;
+    end
+```
 
 ## Features
 
@@ -391,40 +425,3 @@ After identifying the problem, stack allocations are changed to heap allocation 
 Simulink generated C++ class do not forbid these four default constructors, but pointers in RTModel may point to
 invalid locations if `initialize` is not called again.
 So, avoid calling these four default constructors explicitly or implicitly.
-
-## Flowchart
-Github wiki does not support mermaid graph in markdown yet, so a flowchart is attached here.
-The flowchart briefly describes common workflow for your smoother integration. You could refer to relevant sections in wiki for details.
-
-```mermaid
-graph TD;
-    Learn[Learn fundamentals];
-    Prerequisities[Prerequisities];
-    Installation[Installation];
-    Model[Prepare model];
-    Create[Create project];
-    Setup["(MATLAB) slxpy.setup_config(project_path)"];
-    Codegen["(MATLAB) slxpy.codegen(project_path)"];
-    Generate["(CLI) slxpy generate"];
-    Build["(CLI) python setup.py build"];
-    Test["Test & Done"];
-
-    MTC(["On model.toml change"]);
-    MC(["On model change"]);
-    ETC(["On env.toml change"]);
-
-    subgraph Preparation
-    Prerequisities --> Installation;
-    end
-    Installation --> Create;
-    subgraph Main workflow
-        Create --> Setup --> Codegen --> Generate --> Build --> Test;
-        Model --> Setup;
-        MTC --Rerun--> Setup;
-        MC --Rerun--> Codegen;
-        ETC --Rerun--> Generate;
-    end
-```
-
-Copy / Fork basic idea:
-Keep track of all pointers by matching macro (due to no memory allocation, should all be relative pointers)
