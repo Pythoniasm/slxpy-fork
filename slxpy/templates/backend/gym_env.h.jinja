@@ -1,0 +1,494 @@
+{%- from "prelude.jinja" import sources, headers, module with context -%}
+{% macro read_from_npda(npda_ident, target_ident, target_field, checked) -%}
+{% if checked -%}
+{% if target_field.mode == FieldMode.PLAIN -%}
+if ({{npda_ident}}.size() != 1) { throw std::runtime_error("Expect exactly one element."); }
+{%- elif target_field.mode == FieldMode.PLAIN_ARRAY -%}
+if ({{npda_ident}}.size() != {{target_field.size}}) { throw std::runtime_error("Array {{target_field.name}} size incompatible, expecting {{target_field.size}} elements."); }
+{%- endif -%}
+{% endif -%}
+{% set buf_ident = '_buf_' + npda_ident -%}
+double* {{buf_ident}} = static_cast<double*>({{npda_ident}}.request(false).ptr);
+{{ read_from_pointer(buf_ident, target_ident, target_field) }}
+{%- endmacro -%}
+{% macro read_from_pointer(ptr_ident, target_ident, target_field) -%}
+{% if target_field.mode == FieldMode.PLAIN -%}
+{{target_ident}} = *{{ptr_ident}};
+{%- elif target_field.mode == FieldMode.PLAIN_ARRAY -%}
+copy_n_with_coercion({{ptr_ident}}, {{target_field.size}}, {{target_ident}});
+{%- endif -%}
+{%- endmacro -%}
+{% macro write_to_npda(npda_ident, source_ident, source_field) -%}
+{% set buf_ident = '_buf_' + npda_ident -%}
+double* {{buf_ident}} = static_cast<double*>({{npda_ident}}.request(true).ptr);
+{{write_to_pointer(buf_ident, source_ident, source_field)}}
+{%- endmacro -%}
+{% macro write_to_pointer(ptr_ident, source_ident, source_field) -%}
+{% if source_field.mode == FieldMode.PLAIN -%}
+*{{ptr_ident}} = {{source_ident}};
+{%- elif source_field.mode == FieldMode.PLAIN_ARRAY -%}
+copy_n_with_coercion({{source_ident}}, {{source_field.size}}, {{ptr_ident}});
+{%- endif -%}
+{%- endmacro -%}
+{% macro create_npa(ident, type, source_field) -%}
+{%- if source_field.mode == FieldMode.PLAIN -%}
+npa_T<{{type}}> {{ident}}{ 1 };
+{%- elif source_field.mode == FieldMode.PLAIN_ARRAY -%}
+{%- if source_field.shape | length == 1 -%}
+npa_T<{{type}}> {{ident}}{ {{source_field.shape[0]}} };
+{%- else -%}
+npa_T<{{type}}> {{ident}}{ { {{source_field.shape|join(', ')}} } };
+{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+{% macro create_batch_shape(shape_ident, source_field, preserve) -%}
+{%- if source_field.mode == FieldMode.PLAIN -%}
+const std::array<pybind11::ssize_t, {{ 2 if preserve else 1 }}> {{shape_ident}}{ static_cast<pybind11::ssize_t>(batch_size){{ ', 1 ' if preserve }}};
+{%- elif source_field.mode == FieldMode.PLAIN_ARRAY -%}
+const std::array<pybind11::ssize_t, {{1+(source_field.shape | length)}}> {{shape_ident}}{ static_cast<pybind11::ssize_t>(batch_size), {{source_field.shape|join(', ')}} };
+{%- endif -%}
+{%- endmacro -%}
+{% macro create_constexpr_shape(shape_ident, source_field) -%}
+{%- if source_field.mode == FieldMode.PLAIN -%}
+constexpr std::array<pybind11::ssize_t, 1> {{shape_ident}}{ 1 };
+{%- elif source_field.mode == FieldMode.PLAIN_ARRAY -%}
+constexpr std::array<pybind11::ssize_t, {{source_field.shape | length}}> {{shape_ident}}{ {{source_field.shape|join(', ')}} };
+{%- endif -%}
+{%- endmacro -%}
+
+{% set ENV = module.env -%}
+{% set MODEL_CLASS = module.model_class -%}
+{% set act_type = module.types.lookup(MODEL_CLASS.type_mapping.external_inputs) -%}
+{% set obs_type = module.types.lookup(MODEL_CLASS.type_mapping.external_outputs) -%}
+{% set act_field = act_type.field_dict[ENV.gym.action_key] -%}
+{% set obs_field = obs_type.field_dict[ENV.gym.observation_key] -%}
+{% set rew_field = obs_type.field_dict[ENV.gym.reward_key] -%}
+{% set done_field = obs_type.field_dict[ENV.gym.done_key] -%}
+{% set check = False -%}
+
+#pragma once
+#include <random>
+#include <stdexcept>
+#include <vector>
+#include <array>
+#include <limits>
+{% if ENV.use_vec and ENV.vec_parallel -%}
+#include <execution>
+{% endif %}
+{% set VEC_POLICY = 'std::execution::par_unseq, ' if ENV.use_vec and ENV.vec_parallel else '' -%}
+#include "common_env.h"
+#include "slxpy/env.h"
+#include "slxpy/data.h"
+
+namespace slxpy::env {
+using spec::EnvSpec;
+using spec::ActionRepeatMode;
+class GymEnv {
+    raw_T mc{};
+    rng_T rng{};
+    EnvSpec* env_spec;
+    struct {
+        size_t steps{ 0 };
+        bool init{ false };
+        bool truncated{ false };
+    } status;
+private:
+    void step_impl(const act_T act[{{act_field.size}}], obs_T obs[{{obs_field.size}}], rew_T rew[1], done_T terminated[1], done_T truncated[1]{% for k in ENV.gym.info %}{% set info_field = obs_type.field_dict[k] %}, {{k}}_info_T {{k}}_info[{{info_field.size}}]{% endfor %}) {
+        if (status.init) {
+            if (env_spec->strict_reset && (mc.*out_ptr.*done_ptr || status.truncated)) {
+                throw std::runtime_error("Calling step after done is illegal.");
+            }
+            {{ read_from_pointer('act', 'mc.*in_ptr.*act_ptr', act_field) | indent(12) }}
+            if (env_spec->action_repeat == 0) {
+                // Shortcut for non-repeated actions.
+                (mc.*step_ptr)();
+                *rew = mc.*out_ptr.*rew_ptr;
+            } else {
+                if (env_spec->action_repeat_mode != ActionRepeatMode::SUM_BREAK) {
+                    throw std::runtime_error("Unsupported action repeat mode.");
+                }
+                rew_T local_rew{ 0 };
+                for (size_t i = 0; i < env_spec->action_repeat; ++i) {
+                    (mc.*step_ptr)();
+                    local_rew += mc.*out_ptr.*rew_ptr;
+                    if (mc.*out_ptr.*done_ptr) { break; }
+                }
+                *rew = local_rew;
+            }
+            {{ write_to_pointer('obs', 'mc.*out_ptr.*obs_ptr', obs_field) | indent(12) }}
+            {% for k in ENV.gym.info -%}
+            {%- set info_field = obs_type.field_dict[k] -%}
+            {{ write_to_pointer(k + '_info', '(mc.*out_ptr).' + k, info_field) | indent(12) }}
+            {% endfor -%}
+            status.steps += 1;
+            status.truncated = env_spec->max_episode_steps && status.steps >= *env_spec->max_episode_steps;
+            *terminated = mc.*out_ptr.*done_ptr;
+            *truncated = status.truncated;
+        } else {
+            throw std::runtime_error("Calling step before reset is illegal.");
+        }
+    }
+    void reset_impl(obs_T obs[{{obs_field.size}}], callback_T* preinit = nullptr, callback_T* postinit = nullptr) {
+        if (status.init) {
+            // Allowed by
+            // https://github.com/cplusplus/draft/blob/7df2b916044b3b47cd708ed1488f1d2fd5f70886/source/basic.tex#L3457-L3513
+            static_assert(std::is_trivially_destructible_v<raw_T>);
+            new (&mc) raw_T{};
+            status.truncated = false;
+            status.steps = 0;
+        } else {
+            status.init = true;
+        }
+        param_init(mc.*par_ptr, rng);
+        invoke_callback(preinit);
+        (mc.*init_ptr)();
+        if (invoke_callback(postinit)) {
+            // If user provides postinit callback, the user is responsible for resetting the environment.
+            if (mc.*out_ptr.*done_ptr) {
+                throw std::runtime_error("Got done after postinit in reset.");
+            }
+            {{ write_to_pointer('obs', 'mc.*out_ptr.*obs_ptr', obs_field) | indent(12) }}
+            return;
+        }
+        {%- if ENV.reset.first_step %}
+        {% if ENV.reset.input is not none -%}
+        const static input_T initial_input {{ ENV.reset.input }};
+        mc.*in_ptr = initial_input;
+        {%- endif %}
+        (mc.*step_ptr)();
+        if (mc.*out_ptr.*done_ptr) {
+            throw std::runtime_error("Got done at first step in reset.");
+        }
+        {{ write_to_pointer('obs', 'mc.*out_ptr.*obs_ptr', obs_field) | indent(8) }}
+        {%- elif ENV.reset.output is not none %}
+        const static output_T initial_output {{ ENV.reset.output }};
+        {{ write_to_pointer('obs', 'initial_output.*obs_ptr', obs_field) | indent(8) }}
+        {%- else %}
+        {{ write_to_pointer('obs', 'mc.*out_ptr.*obs_ptr', obs_field) | indent(8) }}
+        {%- endif %}
+    }
+public:
+    GymEnv(EnvSpec* env_spec): env_spec(env_spec) { seed(); }
+    GymEnv(EnvSpec env_spec): GymEnv(new EnvSpec(env_spec)) {}
+
+    // Avoid unintended copy
+    GymEnv(const GymEnv&) = delete;
+    GymEnv& operator=(const GymEnv&) = delete;
+    GymEnv(GymEnv&&) = delete;
+    GymEnv& operator=(GymEnv&&) = delete;
+
+    step_T step(npa_T<act_T> act) {
+        auto input_ndim = act.ndim();
+        auto input_shape = act.shape();
+        {{ create_constexpr_shape('act_shape', act_field) }}
+        if (size_not_equal(input_ndim, act_shape.size()) || !std::equal(input_shape, input_shape + input_ndim, act_shape.begin())) {
+            throw std::runtime_error("Action array should have dimension ({{1 if act_field.mode == FieldMode.PLAIN else (act_field.shape | join(', '))}}).");
+        }
+        act_T* act_buf = static_cast<act_T*>(act.request(false).ptr);
+        {{ create_npa('obs', 'obs_T', obs_field) | indent(12) }}
+        obs_T* obs_buf = static_cast<obs_T*>(obs.request(true).ptr);
+        rew_T rew;
+        done_T terminated, truncated;
+        {% for k in ENV.gym.info -%}
+        {%- set info_field = obs_type.field_dict[k] -%}
+        {% if info_field.mode == FieldMode.PLAIN -%}
+        {{k}}_info_T {{k}}_info;
+        {% elif info_field.mode == FieldMode.PLAIN_ARRAY -%}
+        {{ create_npa(k + '_info', k + '_info_T', info_field) | indent(12) }}
+        {{k}}_info_T* {{k}}_info_buf = static_cast<{{k}}_info_T*>({{k}}_info.request(true).ptr);
+        {% endif -%}
+        {% endfor -%}
+
+        step_impl(act_buf, obs_buf, &rew, &terminated, &truncated{%- for k in ENV.gym.info -%}
+        {%- set info_field = obs_type.field_dict[k] -%}
+        , {% if info_field.mode == FieldMode.PLAIN -%}
+        &{{k}}_info
+        {%- elif info_field.mode == FieldMode.PLAIN_ARRAY -%}
+        {{k}}_info_buf
+        {%- endif -%}
+        {%- endfor -%});
+
+        pybind11::dict info;
+        {% for k in ENV.gym.info -%}
+        info["{{k}}"] = {{k}}_info;
+        {% endfor -%}
+        return pybind11::make_tuple(obs, rew, terminated, truncated, info);
+    }
+    reset_T reset(std::optional<uint32_t> s, std::optional<pybind11::dict> options, callback_T* preinit = nullptr, callback_T* postinit = nullptr) {
+        if (s) {
+            seed(*s);
+        }
+        {{ create_npa('obs', 'obs_T', obs_field) | indent(8) }}
+        obs_T* obs_buf = static_cast<obs_T*>(obs.request(true).ptr);
+        reset_impl(obs_buf, preinit, postinit);
+        pybind11::dict info;
+        return pybind11::make_tuple(obs, info);
+    }
+    void seed() {
+        std::random_device rd;
+        seed(rd());
+    }
+    void seed(uint32_t s) {
+        rng.seed(s);
+    }
+    std::string repr() {
+        return fmt::format("<GymEnv wrapping underlying {{ MODEL_CLASS.identifier }} <{}>>", env_spec->id);
+    }
+    void close() { /* Currently no-op */ }
+    const raw_T& model_class() { return mc; }
+    const EnvSpec& spec() { return *env_spec; }
+    ~GymEnv() {
+        delete env_spec;
+    }
+    {% if ENV.use_vec -%}
+    friend class GymEnvVec;
+    {% endif %}
+};
+
+{% if ENV.use_vec -%}
+class GymEnvVec {
+    using storage_t = std::aligned_storage_t<sizeof(GymEnv), alignof(GymEnv)>;
+
+    size_t batch_size;
+    storage_t* storage;
+    size_t* indices;
+    EnvSpec* env_spec;
+    GymEnv* get(size_t pos) {
+        return std::launder(reinterpret_cast<GymEnv*>(std::addressof(storage[pos])));
+    }
+public:
+    GymEnvVec(size_t batch_size, EnvSpec env_spec): GymEnvVec(batch_size, new EnvSpec(env_spec)) {}
+    GymEnvVec(size_t batch_size, EnvSpec* env_spec): batch_size(batch_size), storage(new storage_t[batch_size]), indices(new size_t[batch_size]), env_spec(env_spec) {
+        if (batch_size < 1) {
+            throw std::runtime_error("Batch size must be greater than 1.");
+        }
+        std::iota(indices, indices + batch_size, size_t{ 0 });
+        for (size_t i = 0; i < batch_size; i++) {
+            new (get(i)) GymEnv(env_spec);
+        }
+    }
+
+    // Avoid unintended copy
+    GymEnvVec(const GymEnvVec&) = delete;
+    GymEnvVec(GymEnvVec&&) = delete;
+    GymEnvVec& operator=(const GymEnvVec&) = delete;
+    GymEnvVec& operator=(GymEnvVec&&) = delete;
+
+    step_T step(npa_T<act_T> act) {
+        return step(act, indices, batch_size);
+    }
+    step_T step(npa_T<act_T> act, mask_T mask) {
+        if (size_not_equal(mask.size(), batch_size)) {
+            throw std::runtime_error("Mask array size different from batch size.");
+        }
+        bool* msk_buf = static_cast<bool*>(mask.request(false).ptr);
+        auto indices = mask_to_indices(msk_buf, batch_size);
+        return step(act, indices.data(), indices.size());
+    }
+    step_T step(npa_T<act_T> act, idx_T indices) {
+        size_t* indices_buf = static_cast<size_t*>(indices.request(false).ptr);
+        size_t length = indices.size();
+        return step(act, indices_buf, length);
+    }
+    step_T step(npa_T<act_T> act, const size_t* indices, size_t length) {
+        pybind11::ssize_t input_ndim = act.ndim();
+        const pybind11::ssize_t* input_shape = act.shape();
+        {{ create_batch_shape('act_shape', act_field, True) }}
+        if (size_not_equal(input_ndim, act_shape.size()) || !std::equal(input_shape, input_shape + input_ndim, act_shape.begin())) {
+            throw std::runtime_error("Action array should have dimension (B, {{1 if act_field.mode == FieldMode.PLAIN else (act_field.shape | join(', '))}}).");
+        }
+        act_T* act_buf = static_cast<act_T*>(act.request(false).ptr);
+        {{ create_batch_shape('obs_shape', obs_field, True) }}
+        npa_T<obs_T> obs { obs_shape };
+        obs_T* obs_buf = static_cast<obs_T*>(obs.request(true).ptr);
+        std::optional<npa_T<obs_T>> reset_obs;
+        obs_T* reset_obs_buf = nullptr;
+        if (env_spec->auto_reset) {
+            reset_obs.emplace(obs_shape);
+            reset_obs_buf = static_cast<obs_T*>(reset_obs->request(true).ptr);
+        }
+        {{ create_batch_shape('rew_shape', rew_field, False) }}
+        npa_T<rew_T> rew { rew_shape };
+        rew_T* rew_buf = static_cast<rew_T*>(rew.request(true).ptr);
+        {{ create_batch_shape('done_shape', done_field, False) }}
+        npa_T<done_T> terminated { done_shape };
+        done_T* terminated_buf = static_cast<done_T*>(terminated.request(true).ptr);
+        npa_T<done_T> truncated { done_shape };
+        done_T* truncated_buf = static_cast<done_T*>(truncated.request(true).ptr);
+        {% for k in ENV.gym.info -%}
+        {%- set info_field = obs_type.field_dict[k] -%}
+        {{ create_batch_shape(k + '_info_shape', info_field, False) }}
+        npa_T<{{k}}_info_T> {{k}}_info { {{k}}_info_shape };
+        {{k}}_info_T* {{k}}_info_buf = static_cast<{{k}}_info_T*>({{k}}_info.request(true).ptr);
+        {% endfor -%}
+        std::for_each({{VEC_POLICY}}indices, indices + length, [this, act_buf, obs_buf, reset_obs_buf, rew_buf, terminated_buf, truncated_buf{% for k in ENV.gym.info %}, {{k}}_info_buf{% endfor %}](size_t i) {
+            GymEnv* env = this->get(i);
+            env->step_impl(act_buf + i * {{act_field.size}}, obs_buf + i * {{obs_field.size}}, rew_buf + i, terminated_buf + i, truncated_buf + i{% for k in ENV.gym.info %}{% set info_field = obs_type.field_dict[k] %}, {{k}}_info_buf + i * {{info_field.size}}{% endfor %});
+            if (reset_obs_buf && (terminated_buf[i] || truncated_buf[i])) {
+                env->reset_impl(reset_obs_buf + i * {{obs_field.size}});
+            }
+        });
+        pybind11::dict info;
+        {% for k in ENV.gym.info -%}
+        info["{{k}}"] = {{k}}_info;
+        {% endfor -%}
+        if (env_spec->auto_reset) {
+            bool has_done = std::any_of(terminated_buf, terminated_buf + batch_size, [](bool p) { return p; }) || std::any_of(truncated_buf, truncated_buf + batch_size, [](bool p) { return p; });
+            if (has_done) {
+                for (size_t i = 0; i < length; i++) {
+                    if (!terminated_buf[i] && !truncated_buf[i]) {
+                        std::copy_n(obs_buf + i * {{obs_field.size}}, {{obs_field.size}}, reset_obs_buf + i * {{obs_field.size}});
+                    }
+                }
+                info["terminal_observation"] = obs;
+                return pybind11::make_tuple(*reset_obs, rew, terminated, truncated, info);
+            } else {
+                return pybind11::make_tuple(obs, rew, terminated, truncated, info);
+            }
+        } else {
+            return pybind11::make_tuple(obs, rew, terminated, truncated, info);
+        }
+    }
+    reset_T reset() {
+        return reset(indices, batch_size);
+    }
+    reset_T reset(mask_T mask) {
+        if (size_not_equal(mask.size(), batch_size)) {
+            throw std::runtime_error("Mask array size different from batch size.");
+        }
+        bool* mask_buf = static_cast<bool*>(mask.request(false).ptr);
+        auto indices = mask_to_indices(mask_buf, batch_size);
+        return reset(indices.data(), indices.size());
+    }
+    reset_T reset(idx_T indices) {
+        size_t* indices_buf = static_cast<size_t*>(indices.request(false).ptr);
+        size_t length = indices.size();
+        return reset(indices_buf, length);
+    }
+    reset_T reset(const size_t* indices, size_t length) {
+        {{ create_batch_shape('obs_shape', obs_field, True) }}
+        npa_T<obs_T> obs { obs_shape };
+        obs_T* obs_buf = static_cast<obs_T*>(obs.request(true).ptr);
+        std::for_each({{VEC_POLICY}}indices, indices + length, [this, obs_buf](size_t i) {
+            this->get(i)->reset_impl(obs_buf + i * {{obs_field.size}});
+        });
+        pybind11::dict info;
+        return pybind11::make_tuple(obs, info);
+    }
+    std::vector<uint32_t> seed() {
+        std::random_device rd;
+        return seed(rd());
+    }
+    std::vector<uint32_t> seed(uint32_t s) {
+        rng_T rng; rng.seed(s);
+        std::vector<uint32_t> seeds(batch_size);
+        get(0)->seed(s); seeds[0] = s;
+        for (size_t i = 1; i < batch_size; i++)
+        {
+            auto seed = rng();
+            get(i)->seed(seed);
+            seeds[i] = seed;
+        }
+        return seeds;
+    }
+    const GymEnv& at(size_t index) {
+        if (index >= batch_size) {
+            throw std::out_of_range("Index out of range.");
+        }
+        return *get(index);
+    }
+    std::string repr() {
+        return fmt::format("<GymEnvVec wrapping {} underlying {{ MODEL_CLASS.identifier }} <{}>>", batch_size, env_spec->id);
+    }
+    void close() { /* Currently no-op */ }
+    size_t size() { return batch_size; }
+    const EnvSpec& spec() { return *env_spec; }
+    ~GymEnvVec() {
+        // Delete env_spec here, do not call GymEnv's destructor
+        // https://github.com/cplusplus/draft/blob/7df2b916044b3b47cd708ed1488f1d2fd5f70886/source/basic.tex#L3352-L3362
+        delete env_spec;
+        delete[] indices;
+        delete[] storage;
+    }
+};
+{% endif %}
+
+bool slxpy_bind_gym_env(::pybind11::module_& m) {
+    try {
+        pybind11::module::import("gymnasium");
+    } catch(pybind11::error_already_set& e) {
+        if (!e.matches(PyExc_ModuleNotFoundError)) { throw; }
+        // 7 stacklevels to skip importlib, but currently not used
+        PyErr_WarnEx(nullptr, "You must install gymnasium to use Slxpy GymEnv. For now, GymEnv is not initialized.", 1);
+        // NOTE: Below rethrow code leads to intimidating error message, so currently not used.
+        // pybind11::raise_from(e, PyExc_ModuleNotFoundError, "You must install gymnasium to use Slxpy GymEnv.");
+        // throw pybind11::error_already_set();
+        return false;
+    }
+
+    auto s = m.def_submodule("_env", "Define env-related bindings.");
+    slxpy_bind_spec(s);
+
+    auto action_space = slxpy::env::gym_spaces::{{ENV.gym.action_space.func}}({{ENV.gym.action_space.initializer}});
+    auto observation_space = slxpy::env::gym_spaces::{{ENV.gym.observation_space.func}}({{ENV.gym.observation_space.initializer}});
+    auto reward_range = pybind11::make_tuple({{ENV.gym.reward_initializer}});
+
+    // Placeholder for metadata field
+    pybind11::dict metadata;
+    metadata["render.modes"] = pybind11::list();
+
+    pybind11::class_<GymEnv> GymEnv_PB(m, "GymEnv", pybind11::module_local());
+    GymEnv_PB
+        .def(pybind11::init([]() -> std::unique_ptr<GymEnv> {
+            return std::make_unique<GymEnv>(new EnvSpec{ "{{ module.name | capitalize }}-v0" });
+        }))
+        .def(pybind11::init<EnvSpec>(), "spec"_a)
+        .def("step", &GymEnv::step, "", "action"_a.noconvert())
+        .def("reset", &GymEnv::reset, pybind11::kw_only(), "seed"_a=nullptr, "options"_a=nullptr, "preinit"_a=nullptr, "postinit"_a=nullptr)
+        .def("render", [](GymEnv& self) { PyErr_SetNone(PyExc_NotImplementedError); throw pybind11::error_already_set(); }, "")
+        .def("close", &GymEnv::close, "")
+        .def("__repr__", &GymEnv::repr, "")
+        .def("__enter__", [](pybind11::object& self) { return self; }, "")
+        .def("__exit__", [](GymEnv& self, pybind11::object& exc_type, pybind11::object& exc_value, pybind11::object& traceback) { self.close(); return false; }, "")
+        .def_property_readonly("model_class", &GymEnv::model_class)
+        .def_property_readonly("spec", &GymEnv::spec)
+        .def_property_readonly("unwrapped", [](pybind11::object& self) { return self; });
+    GymEnv_PB.attr("metadata") = metadata;
+    GymEnv_PB.attr("action_space") = action_space;
+    GymEnv_PB.attr("observation_space") = observation_space;
+    GymEnv_PB.attr("reward_range") = reward_range;
+    {% if ENV.use_vec -%}
+    pybind11::class_<GymEnvVec> GymEnvVec_PB(m, "GymEnvVec", pybind11::module_local());
+    GymEnvVec_PB
+        .def(pybind11::init([] (size_t batch_size) -> std::unique_ptr<GymEnvVec> {
+            return std::make_unique<GymEnvVec>(batch_size, new EnvSpec{ "{{ module.name | capitalize }}-v0" });
+        }), "batch_size"_a)
+        .def(pybind11::init<size_t, EnvSpec>(), "batch_size"_a, "spec"_a)
+        .def("step", pybind11::overload_cast<npa_T<act_T>>(&GymEnvVec::step), "", "action"_a.noconvert())
+        .def("step", pybind11::overload_cast<npa_T<act_T>, mask_T>(&GymEnvVec::step), "", "action"_a.noconvert(), "mask"_a.noconvert())
+        .def("step", pybind11::overload_cast<npa_T<act_T>, idx_T>(&GymEnvVec::step), "", "action"_a.noconvert(), "indices"_a.noconvert())
+        .def("reset", pybind11::overload_cast<>(&GymEnvVec::reset), "")
+        .def("reset",pybind11::overload_cast<mask_T>(&GymEnvVec::reset), "", "mask"_a.noconvert())
+        .def("reset",pybind11::overload_cast<idx_T>(&GymEnvVec::reset), "", "indices"_a.noconvert())
+        .def("seed", pybind11::overload_cast<>(&GymEnvVec::seed), "")
+        .def("seed", pybind11::overload_cast<uint32_t>(&GymEnvVec::seed), "", "seed"_a)
+        .def("render", [](GymEnvVec& self, std::string mode) { PyErr_SetNone(PyExc_NotImplementedError); throw pybind11::error_already_set(); }, "", "mode"_a="human")
+        .def("close", &GymEnvVec::close, "")
+        .def("__repr__", &GymEnvVec::repr, "")
+        .def("__enter__", [](pybind11::object& self) { return self; }, "")
+        .def("__exit__", [](GymEnvVec& self, pybind11::object& exc_type, pybind11::object& exc_value, pybind11::object& traceback) { self.close(); return false; }, "")
+        .def("at", &GymEnvVec::at, pybind11::return_value_policy::reference_internal)
+        .def("size", &GymEnvVec::size)
+        .def_property_readonly("spec", &GymEnvVec::spec)
+        .def_property_readonly("unwrapped", [](pybind11::object& self) { return self; });
+    GymEnvVec_PB.attr("metadata") = metadata;
+    GymEnvVec_PB.attr("single_action_space") = action_space;
+    GymEnvVec_PB.attr("single_observation_space") = observation_space;
+    GymEnvVec_PB.attr("reward_range") = metadata;
+    {% endif %}
+
+    return true;
+}
+}
+
+using slxpy::env::slxpy_bind_gym_env;

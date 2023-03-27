@@ -1,0 +1,25 @@
+# Config version. DO NOT CHANGE.
+__version__ = "{{config.VERSION}}"
+
+model = "{{config.model}}"
+
+[simulink]
+    solver = "{{config.simulink.solver}}"
+
+    absolute_time = {{config.simulink.absolute_time | tf}}
+    integer_code = {{config.simulink.integer_code | tf}}
+    non_finite = {{config.simulink.non_finite | tf}}
+    complex = {{config.simulink.complex | tf}}
+    continuous_time = {{config.simulink.continuous_time | tf}}
+    variable_size_signal = {{config.simulink.variable_size_signal | tf}}
+    non_inlined_sfcn = {{config.simulink.non_inlined_sfcn | tf}}
+
+[cpp]
+    class_name = "{{config.cpp.class_name}}"
+    namespace = "{{config.cpp.namespace}}"
+
+[info]
+    description = "{{config.info.description}}"
+    version = "{{config.info.version}}"
+    author = "{{config.info.author}}"
+    license = "{{config.info.license}}"

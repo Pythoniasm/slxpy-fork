@@ -1,0 +1,39 @@
+{
+    "_schemaVersion": "1.0.0",
+    "slxpy.setup_config": {
+        "inputs": [
+            {
+                "name": "workdir",
+                "kind": "required",
+                "type": ["folder"],
+                "purpose": "Working directory for slxpy project"
+            }
+        ]
+    },
+    "slxpy.codegen": {
+        "inputs": [
+            {
+                "name": "workdir",
+                "kind": "required",
+                "type": ["folder"],
+                "purpose": "Working directory for slxpy project"
+            }
+        ]
+    },
+    "slxpy.postprocess": {
+        "inputs": [
+            {
+                "name": "modelName",
+                "kind": "required",
+                "type": ["matlabpathfile=*.slx"],
+                "purpose": "Simulink model name"
+            },
+            {
+                "name": "buildInfo",
+                "kind": "required",
+                "type": ["RTW.BuildInfo"],
+                "purpose": "Embedded coder build info"
+            }
+        ]
+    }
+}

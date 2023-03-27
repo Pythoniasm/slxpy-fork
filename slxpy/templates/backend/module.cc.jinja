@@ -1,0 +1,226 @@
+{%- from "prelude.jinja" import sources, headers, module with context -%}
+{% macro define_in_namespace(ns) -%}
+    {%- if ns == '' or ns is none -%}
+        {{ caller() }}
+    {%- else -%}
+namespace {{ns}} {
+    // Start of namespace
+    {{ caller() }}// End of namespace
+}
+    {%- endif -%}
+{%- endmacro -%}
+{% macro bind_field(type, field) -%}
+    {%- if field.mode == FieldMode.PLAIN or field.mode == FieldMode.STRUCT or field.mode == FieldMode.MODEL or field.mode == FieldMode.ENUM or field.mode == FieldMode.POINTER -%}
+        { BIND_SCALAR_FIELD({{type._binding_identifier}}, {{type._alias_name}}, {{field.name}}, "{{field.name}}", {{ field.doc | tojson }}); }
+    {%- elif field.mode == FieldMode.PLAIN_ARRAY or field.mode == FieldMode.STRUCT_ARRAY or field.mode == FieldMode.ENUM_ARRAY or field.mode == FieldMode.POINTER_ARRAY -%}
+        { BIND_ARRAY_FIELD({{type._binding_identifier}}, {{type._alias_name}}, {{field.name}}, "{{field.name}}", {{ field.doc | tojson }}, {{ field.shape | join(', ') }}); }
+    {%- else -%}
+        {{ 0 / 0 }}
+    {%- endif -%}
+{%- endmacro -%}
+{% macro format_args(type) -%}
+    {{ type.fields | selectattr('mode', 'equalto', FieldMode.PLAIN) | map(attribute='name') | map('prefix', ', self.') | join('') }}
+{%- endmacro -%}
+{% macro format_string(type, mapping) -%}
+R"--({{type.name}}(
+    {% for field in type.fields -%}
+        {{ field.name }}={%- if field.mode == FieldMode.PLAIN -%}
+            {}
+        {%- elif field.mode == FieldMode.MODEL -%}
+            <Model struct: {{ field.name | field_desc }}>
+        {%- elif field.mode == FieldMode.PLAIN_ARRAY -%}
+            <Numeric array of shape ({{ field.shape | join(',') }})>
+        {%- elif field.mode == FieldMode.STRUCT -%}
+            <{{ field.type }} struct>
+        {%- elif field.mode == FieldMode.STRUCT_ARRAY -%}
+            <{{ field.type }} struct array of shape ({{ field.shape | join(',') }})>
+        {%- elif field.mode == FieldMode.ENUM -%}
+            {# TODO: Proper enum support #}
+            <{{ field.type }} enum>
+        {%- elif field.mode == FieldMode.ENUM_ARRAY -%}
+            <{{ field.type }} enum array of shape ({{ field.shape | join(',') }})>
+        {%- elif field.mode == FieldMode.POINTER -%}
+            <Opaque pointer>
+        {%- elif field.mode == FieldMode.POINTER_ARRAY -%}
+            <Opaque pointer array of shape ({{ field.shape | join(',') }})>
+        {%- else -%}
+            {{ 0 / 0 }}
+        {%- endif -%}{{ ',\n    ' if not loop.last }}
+    {%- endfor %}
+))--"
+{%- endmacro -%}
+
+// Pybind11 headers
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+#include <pybind11/functional.h>
+#include <pybind11/stl.h>
+using namespace pybind11::literals;
+// check and define macros
+#ifndef SLXPY_EXTENSION_NAME
+    #error Necessary macro not defined
+#endif
+#define SLXPY_STRINGIFY(...) #__VA_ARGS__
+#define SLXPY_TOSTRING(...) SLXPY_STRINGIFY(__VA_ARGS__)
+#ifndef PYBIND11_CPP17
+    #error Require CPP 17 compiler
+#endif
+// User headers
+{% for header in headers -%}
+    #include "{{ header }}"
+{% endfor -%}
+// Slxpy headers
+{#- #define USE_SLXPY_JSON // NOTE: Temporarily disable nlohmann/json #}
+#define USE_FMT
+{% for header in slxpy_headers -%}
+    #include "slxpy/{{ header }}"
+{% endfor -%}
+{% set ENV = module.env -%}
+{{ '#include "raw_env.h"' if ENV.use_raw }}
+{{ '#include "gym_env.h"' if ENV.use_gym }}
+
+{# Type alias #}
+{% set MODEL_CLASS = module.model_class -%}
+using SlxpyExtensionModelClass = {{ MODEL_CLASS.identifier }};
+{% set TYPES = module.types -%}
+{% for type in TYPES -%}
+    using {{ type._alias_name }} = {{ MODEL_CLASS._alias_name if type.location == 'model_class' }}::{{ type.name }}; {%- if not type.is_enum -%} static_assert(std::is_trivial_v<{{type._alias_name}}> && std::is_standard_layout_v<{{type._alias_name}}>); {%- endif %}
+{% endfor %}
+
+{#- JSON serialization definition #}
+{#- NOTE: Temporarily disable nlohmann/json to avoid stack overflow & currently not so useful
+#include <nlohmann/json.hpp>
+#define NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_FORWARD_DECLARATION(Type)    \
+    inline void to_json(nlohmann::json&, const Type&);                  \
+    inline void from_json(const nlohmann::json&, Type&);
+{% call define_in_namespace(module.model_class.namespace) -%}
+    {% for type in TYPES.in_model_class -%}
+        NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_FORWARD_DECLARATION({{ type._alias_name }})
+    {% endfor -%}
+{%- endcall %}
+{% for type in TYPES.in_root -%}
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_FORWARD_DECLARATION({{ type._alias_name }})
+{% endfor -%}
+#undef NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_FORWARD_DECLARATION
+{% call define_in_namespace(module.model_class.namespace) -%}
+    {% for type in TYPES.in_model_class -%}
+        NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE({{ type._alias_name }}{% for field in type.fields -%}, {{ field.name }}{% endfor -%})
+    {% endfor -%}
+{%- endcall %}
+{% for type in TYPES.in_root -%}
+    NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE({{ type._alias_name }}{% for field in type.fields -%}, {{ field.name }}{% endfor -%})
+{% endfor -%}
+-#}
+#include <fmt/core.h>
+
+PYBIND11_MODULE(SLXPY_EXTENSION_NAME, m) {
+    m.doc() = {{ module.doc | tojson }};
+    {# Additional module metadata -#}
+    #ifdef SLXPY_EXTENSION_VERSION
+        m.attr("__version__") = pybind11::str(SLXPY_TOSTRING(SLXPY_EXTENSION_VERSION));
+    #endif
+    #ifdef SLXPY_EXTENSION_AUTHOR
+        m.attr("__author__") = pybind11::str(SLXPY_TOSTRING(SLXPY_EXTENSION_AUTHOR));
+    #endif
+    #ifdef SLXPY_EXTENSION_LICENSE
+        m.attr("__license__") = pybind11::str(SLXPY_TOSTRING(SLXPY_EXTENSION_LICENSE));
+    #endif
+    slxpy_init_simulink(m);
+    slxpy_init_complex();
+
+    {# Create binding classes -#}
+    pybind11::class_<SlxpyExtensionModelClass> {{ MODEL_CLASS._binding_identifier }}(m, "{{ MODEL_CLASS._binding_name }}", pybind11::module_local());
+    {% for type in TYPES -%}
+        pybind11::{{ 'enum_' if type.is_enum else 'class_' }}<{{ type._alias_name }}> {{ type._binding_identifier }}({{ MODEL_CLASS._binding_identifier if type.location == 'model_class' else 'm' }}, "{{ type._binding_name }}");
+    {% endfor %}
+
+    {% for type in TYPES.dependency_order | select_struct -%}
+        PYBIND11_NUMPY_DTYPE({{ type._alias_name }}, {{ type.fields | map(attribute='name') | join(', ') }});
+    {% endfor %}
+    {# Create binding for struct types -#}
+    {% for type in TYPES | select_struct -%}
+    {{ type._binding_identifier }}.attr("dtype") = pybind11::dtype::of<{{ type._alias_name }}>();
+    {{ type._binding_identifier }}
+        .def(pybind11::init())
+        .def("numpy", [](pybind11::object& obj) {
+            return pybind11::array_t<{{ type._alias_name }}>{ {1}, {}, &obj.cast<{{ type._alias_name }}&>(), obj };
+        })
+        .def("__repr__", [](const {{ type._alias_name }} &self) {
+            return fmt::format({{ format_string(type) }}{{ format_args(type) }});
+        })
+        .def("__copy__", [](const {{ type._alias_name }} &self) {
+            return std::make_unique<{{ type._alias_name }}>(self);
+        })
+        .def("__deepcopy__", [](const {{ type._alias_name }} &self, pybind11::dict) {
+            return std::make_unique<{{ type._alias_name }}>(self);
+        }, "memo"_a);
+        {#- .def(pybind11::pickle(
+            [](const {{ type._alias_name }} &self) {
+                nlohmann::json j = self;
+                return nlohmann::json::to_msgpack(j);
+            },
+            [](std::vector<std::uint8_t> t) {
+                return nlohmann::json::from_msgpack(t).get<{{ type._alias_name }}>();
+            }
+        )) -#}
+        {% for field in type.fields -%}
+            {{ bind_field(type, field) }}
+        {% endfor -%}
+    {% endfor %}
+
+    {# Create binding for enum types -#}
+    {% for type in TYPES | select_enum -%}
+        {{ type._binding_identifier }}
+        {% for field in type.fields -%}
+            .value("{{ field.name }}", {{ type._alias_name }}::{{ field.name }})
+        {% endfor -%};
+    {% endfor %}
+
+    {# Create binding for model class -#}
+    {% for field in MODEL_CLASS.fields -%}
+        {#- Make sure fields are not static, especially for pre-R2020b handling -#}
+        static_assert(std::is_member_pointer_v<decltype(&SlxpyExtensionModelClass::{{field.name}})>);
+    {% endfor -%}{{''}}
+    {{ MODEL_CLASS._binding_identifier }}
+        .def(pybind11::init())
+        .def("__repr__", [](const {{ MODEL_CLASS._alias_name }} &self) {
+            return fmt::format({{ format_string(MODEL_CLASS, MODEL_CLASS.field_mapping) }}{{ format_args(MODEL_CLASS) }});
+        })
+        .def("skip", []({{ MODEL_CLASS._alias_name }} &self, size_t n) {
+            for (size_t i = 0; i < n; ++i) {
+                self.{{ MODEL_CLASS.field_mapping.step }}();
+            }
+        }, "n"_a, "Skip n steps, using current model input")
+        ;
+        {% for method in MODEL_CLASS.methods -%}
+            { BIND_METHOD({{MODEL_CLASS._binding_identifier}}, SlxpyExtensionModelClass, {{method.name}}, "{{method.name}}", {{ method.doc | tojson }}); }
+        {% endfor -%}
+        {% for field in MODEL_CLASS.fields -%}
+            {{ bind_field(MODEL_CLASS, field) }}
+        {% endfor -%}{{''}}
+    {{ MODEL_CLASS._binding_identifier }}.attr("sample_time") = {{ MODEL_CLASS.sample_time }};
+    {{ 'slxpy_bind_raw_env(m);' if ENV.use_raw }}
+    bool gym_env_inited = {{ 'slxpy_bind_gym_env(m)' if ENV.use_gym else 'false' }};
+
+    if (gym_env_inited) {
+        m.attr("__all__") = pybind11::make_tuple(
+            {% for type in TYPES.in_root -%}
+                "{{ type._binding_name }}",
+            {% endfor -%}
+            {{- '"RawEnv",' if ENV.use_raw -}}
+            {{- '"RawEnvVec",' if ENV.use_raw and ENV.use_vec -}}
+            {{- '"GymEnv",' if ENV.use_gym -}}
+            {{- '"GymEnvVec",' if ENV.use_gym and ENV.use_vec -}}
+            "{{ MODEL_CLASS._binding_name }}"
+        );
+    } else {
+        m.attr("__all__") = pybind11::make_tuple(
+            {% for type in TYPES.in_root -%}
+                "{{ type._binding_name }}",
+            {% endfor -%}
+            {{- '"RawEnv",' if ENV.use_raw -}}
+            {{- '"RawEnvVec",' if ENV.use_raw and ENV.use_vec -}}
+            "{{ MODEL_CLASS._binding_name }}"
+        );
+    }
+}

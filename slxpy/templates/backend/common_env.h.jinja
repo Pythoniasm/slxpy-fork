@@ -1,0 +1,141 @@
+{%- from "prelude.jinja" import sources, headers, module with context -%}
+{% set ENV = module.env -%}
+{% set MODEL_CLASS = module.model_class -%}
+#pragma once
+#include <random>
+#include <vector>
+#include <array>
+#include <optional>
+
+namespace slxpy::env {
+    using raw_T = {{ MODEL_CLASS.identifier }};
+    using input_T = raw_T::{{ MODEL_CLASS.type_mapping.external_inputs }};
+    using output_T = raw_T::{{ MODEL_CLASS.type_mapping.external_outputs }};
+    using par_T = raw_T::{{ MODEL_CLASS.type_mapping.instance_parameters }};
+    using rng_T = std::mt19937;
+
+    constexpr auto step_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.step }};
+    constexpr auto init_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.initialize }};
+    constexpr auto term_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.terminate }};
+    constexpr auto in_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.external_inputs }};
+    constexpr auto out_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.external_outputs }};
+    constexpr auto par_ptr = &raw_T::{{ MODEL_CLASS.field_mapping.instance_parameters }};
+
+    template <typename T>
+    using npac_T = pybind11::array_t<T, pybind11::array::c_style | pybind11::array::forcecast>;
+    template <typename T>
+    using npaf_T = pybind11::array_t<T, pybind11::array::f_style | pybind11::array::forcecast>;
+    template <typename T>
+    using npa_T = npac_T<T>;
+
+    bool size_not_equal(pybind11::ssize_t size_py, size_t size_cpp) {
+        // Explicit cast to avoid GCC and CLANG warning
+        return static_cast<size_t>(size_py) != size_cpp;
+    }
+
+    {% if ENV.use_vec -%}
+    using mask_T = npa_T<bool>;
+    using idx_T = npa_T<pybind11::ssize_t>;
+
+    std::vector<size_t> mask_to_indices(const bool* mask, size_t length) {
+        const size_t size = std::accumulate(mask, mask + length, size_t{ 0 });
+        std::vector<size_t> indices; indices.reserve(size);
+        for (size_t i = 0; i < length; i++)
+        {
+            if (mask[i]) indices.push_back(i);
+        }
+        return indices;
+    }
+    {% endif %}
+    {% if ENV.use_gym -%}
+    using step_T = pybind11::tuple;
+    using reset_T = pybind11::tuple;
+
+    template <typename T, auto M>
+    using underlying_t = std::remove_all_extents_t<std::remove_reference_t<decltype(std::declval<T>().*M)>>;
+    constexpr auto act_ptr = &input_T::{{ ENV.gym.action_key }};
+    using act_mT = underlying_t<input_T, act_ptr>; static_assert(std::is_arithmetic_v<act_mT>, "Currently only arithmetic data types are allowed.");
+    using act_gT = {{ENV.gym.action_space.ctype}};
+    using act_T = {{'act_gT' if ENV.gym.type_coercion else 'act_mT'}};
+    constexpr auto obs_ptr = &output_T::{{ ENV.gym.observation_key }};
+    using obs_mT = underlying_t<output_T, obs_ptr>; static_assert(std::is_arithmetic_v<obs_mT>, "Currently only arithmetic data types are allowed.");
+    using obs_gT = {{ENV.gym.observation_space.ctype}};
+    using obs_T = {{'obs_gT' if ENV.gym.type_coercion else 'obs_mT'}};
+    {% if not ENV.gym.type_coercion -%}
+    static_assert(std::is_same_v<act_mT, act_gT>, "Type coercion is not enabled. Thus the action type must be the same as the gym action type.");
+    static_assert(std::is_same_v<obs_mT, obs_gT>, "Type coercion is not enabled. Thus the observation type must be the same as the gym observation type.");
+    {% endif %}
+    constexpr auto rew_ptr = &output_T::{{ ENV.gym.reward_key }};
+    using rew_T = underlying_t<output_T, rew_ptr>; static_assert(std::is_floating_point_v<rew_T>, "Data type of 'rew' shall be a floating-point type.");
+    constexpr auto done_ptr = &output_T::{{ ENV.gym.done_key }};
+    using done_T = underlying_t<output_T, done_ptr>; static_assert(std::is_same_v<done_T, bool>, "Data type of 'done' shall be 'bool'.");
+    {% set obs_type = module.types.lookup(MODEL_CLASS.type_mapping.external_outputs) -%}
+    {% for k in ENV.gym.info -%}
+    {%- set info_field = obs_type.field_dict[k] -%}
+    constexpr auto {{k}}_info_ptr = &output_T::{{ k }};
+    using {{k}}_info_T = underlying_t<output_T, {{k}}_info_ptr>; static_assert(std::is_arithmetic_v<{{k}}_info_T>, "Currently only arithmetic data types are allowed.");
+    {% endfor -%}
+
+    {% endif %}
+
+    using callback_T = std::function<void()>;
+    bool invoke_callback(callback_T* callback = nullptr) {
+        if (callback->operator bool()) {
+            callback->operator()();
+            return true;
+        }
+        return false;
+    }
+
+    void param_init(par_T& params, rng_T& rng) {
+        {% for p in ENV.parameter.values() | unique(attribute='type') %}
+            {%- if p.type == 'seed' -%}
+                using dist_seed_T = std::uniform_int_distribution<uint32_t>; dist_seed_T dist_seed{ 1, 0x7FFFFFFE };
+            {%- elif p.type == 'uniform' -%}
+                using dist_urd_T = std::uniform_real_distribution<double>; dist_urd_T dist_urd;
+            {%- elif p.type in ['constant', 'custom'] -%}
+                {#- Nothing -#}
+            {%- else -%}
+                {{ 0/0 }}
+            {%- endif %}
+        {% endfor -%}
+        {%- set param_type = module.types.lookup(MODEL_CLASS.type_mapping.instance_parameters) -%}
+        {% for k, p in ENV.parameter.items() %}
+            {%- set field = param_type.field_dict[k] -%}
+            {%- set ident = "params." + k -%}
+            {
+            {% if p.type == 'seed' -%}
+                static_assert(std::is_same_v<std::remove_all_extents_t<decltype({{ident}})>, double>, "Expect parameter {{k}} to be double type.");
+                {% if field.mode == FieldMode.PLAIN -%}
+                    {{ident}} = static_cast<double>(dist_seed(rng));
+                {%- elif field.mode == FieldMode.PLAIN_ARRAY -%}
+                    for (size_t i = 0; i < {{field.size}}; i++) { {{ident}}[i] = static_cast<double>(dist_seed(rng)); }
+                {%- else -%}{{ 0/0 }}{%- endif %}
+            {%- elif p.type == 'uniform' -%}
+                {%- if field.mode == FieldMode.PLAIN -%}
+                    {{ident}} = dist_urd(rng, dist_urd_T::param_type{ {{p.low}}, {{p.high}} });
+                {%- elif field.mode == FieldMode.PLAIN_ARRAY -%}
+                    {%- set la = p.low is sequence %}{% set ha = p.high is sequence -%}
+                    {%- set li = k + "_low[i]" if la else p.low %}{% set hi = k + "_high[i]" if ha else p.high -%}
+                    {% if la %}constexpr static std::array<double, {{field.size}}> {{k}}_low { {{p.low | join(', ')}} };{% endif %}
+                    {% if ha %}constexpr static std::array<double, {{field.size}}> {{k}}_high { {{p.high | join(', ')}} };{% endif %}
+                    for (size_t i = 0; i < {{field.size}}; i++) { {{ident}}[i] = dist_urd(rng, dist_urd_T::param_type{ {{li}}, {{hi}} }); }
+                {%- else -%}{{ 0/0 }}{%- endif %}
+            {%- elif p.type == 'constant' -%}
+                {% if field.mode == FieldMode.PLAIN -%}
+                    {{ident}} = {{p.value}};
+                {%- elif field.mode == FieldMode.PLAIN_ARRAY -%}
+                    {%- if p.value is string -%}
+                        constexpr static std::array<double, {{field.size}}> {{k}}_constant { {{p.value}} };
+                        std::copy_n({{k}}_constant.begin(), {{field.size}}, {{ident}});
+                    {%- elif ident -%}
+                        std::fill_n({{ident}}, {{field.size}}, {{p.value}});
+                    {%- endif %}
+                {%- else -%}{{ 0/0 }}{%- endif %}
+            {%- elif p.type == 'custom' -%}
+                {{p.code}}
+            {%- else -%}{{ 0/0 }}{%- endif -%}
+            {{'\n' + ' ' * 8}}}
+        {% endfor %}
+    }
+}

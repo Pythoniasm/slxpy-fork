@@ -1,0 +1,35 @@
+function mapping = mapping_prototype()
+% mapping between meaning and codegen identifier
+% See: https://www.mathworks.com/help/ecoder/ref/system-generated-identifiers.html
+mapping = {
+    'block_signals'             , 'B'
+%     'external_inputs'           , 'ExtU'
+%     'external_input_sizes'      , 'ExtUSize'
+%     'external_outputs'          , 'ExtY'
+%     'external_output_sizes'     , 'ExtYSize'
+    'external_inputs'           , 'U'
+    'external_input_sizes'      , 'USize'
+    'external_outputs'          , 'Y'
+    'external_output_sizes'     , 'YSize'
+    'parameters'                , 'P'
+    'const_block_signals'       , 'ConstB'
+    'machine_local_data'        , 'MachLocal'
+    'const_parameters'          , 'ConstP'
+    'const_parameters_with_init', 'ConstInitP'
+    'discrete_states'           , 'DW'
+    'mass_matrix'               , 'MassMatrix'
+    'zero_crossing_states'      , 'PrevZCX'
+    'continuous_states'         , 'X'
+    'disabled_states'           , 'XDis'
+    'state_derivatives'         , 'XDot'
+    'zero_crossing_signals'     , 'ZCV'
+%     'default_parameters'        , 'DefaultP'
+%     'global_TID'                , 'GlobalTID'
+%     'invariant_signals'         , 'Invariant'
+%     'n_stages'                  , 'NSTAGES'
+%     'object'                    , 'Obj'
+%     'timing_bridge'             , 'TimingBrdg'
+%     'shared_DSM'                , 'SharedDSM'
+    'instance_parameters'       , 'InstP'
+};
+end

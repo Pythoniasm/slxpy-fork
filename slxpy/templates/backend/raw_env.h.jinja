@@ -1,0 +1,217 @@
+{%- from "prelude.jinja" import sources, headers, module with context -%}
+{% set ENV = module.env -%}
+{% set MODEL_CLASS = module.model_class -%}
+#pragma once
+#include <random>
+#include <stdexcept>
+#include <vector>
+#include <array>
+#include <memory>
+{% if ENV.use_vec and ENV.vec_parallel -%}
+#include <execution>
+{% endif %}
+{% set VEC_POLICY = 'std::execution::par_unseq, ' if ENV.use_vec and ENV.vec_parallel else '' -%}
+#include "common_env.h"
+
+namespace slxpy::env {
+class RawEnv {
+    raw_T mc{};
+    rng_T rng{};
+    bool init{ false };
+private:
+    void step_impl(const input_T* input, output_T* output) {
+        if (init) {
+            mc.*in_ptr = *input;
+            (mc.*step_ptr)();
+            *output = mc.*out_ptr;
+        } else {
+            throw std::runtime_error("Calling step before reset is illegal.");
+        }
+    }
+    void reset_impl(output_T* output) {
+        if (init) {
+            // Allowed by
+            // https://github.com/cplusplus/draft/blob/7df2b916044b3b47cd708ed1488f1d2fd5f70886/source/basic.tex#L3457-L3513
+            static_assert(std::is_trivially_destructible_v<raw_T>);
+            new (&mc) raw_T{};
+        } else {
+            init = true;
+        }
+        param_init(mc.*par_ptr, rng);
+        (mc.*init_ptr)();
+        {%- if ENV.reset.first_step %}
+        {% if ENV.reset.input is not none -%}
+        const static input_T initial_input {{ ENV.reset.input }};
+        mc.*in_ptr = initial_input;
+        {%- endif %}
+        (mc.*step_ptr)();
+        *output = mc.*out_ptr;
+        {%- elif ENV.reset.output is not none %}
+        const static output_T initial_output {{ ENV.reset.output }};
+        *output = initial_output;
+        {%- else %}
+        *output = mc.*out_ptr;
+        {%- endif %}
+    }
+public:
+    RawEnv() { seed(); }
+    std::unique_ptr<output_T> step(input_T* input) {
+        auto output = std::make_unique<output_T>();
+        step_impl(input, output.get());
+        return output;
+    }
+    std::unique_ptr<output_T> reset() {
+        auto output = std::make_unique<output_T>();
+        reset_impl(output.get());
+        return output;
+    }
+    std::vector<uint32_t> seed() {
+        std::random_device rd;
+        auto s = rd();
+        return seed(s);
+    }
+    std::vector<uint32_t> seed(uint32_t s) {
+        rng.seed(s);
+        return { s };
+    }
+    raw_T& model_class() { return mc; }
+    {% if ENV.use_vec -%}
+    friend class RawEnvVec;
+    {% endif %}
+};
+
+{% if ENV.use_vec -%}
+class RawEnvVec {
+    using storage_t = std::aligned_storage_t<sizeof(RawEnv), alignof(RawEnv)>;
+
+    size_t batch_size;
+    storage_t* storage;
+    size_t* indices;
+    RawEnv* get(size_t pos) {
+        return std::launder(reinterpret_cast<RawEnv*>(std::addressof(storage[pos])));
+    }
+public:
+    RawEnvVec(size_t batch_size): batch_size(batch_size), storage(new storage_t[batch_size]), indices(new size_t[batch_size]) {
+        if (batch_size < 1) {
+            throw std::runtime_error("Batch size must be greater than 1.");
+        }
+        std::iota(indices, indices + batch_size, size_t{ 0 });
+        for (size_t i = 0; i < batch_size; i++) {
+            new (get(i)) RawEnv();
+        }
+    }
+    npa_T<output_T> step(npa_T<input_T> input) {
+        return step(input, indices, batch_size);
+    }
+    npa_T<output_T> step(npa_T<input_T> input, mask_T mask) {
+        if (size_not_equal(mask.size(), batch_size)) {
+            throw std::runtime_error("Mask array size different from batch size.");
+        }
+        bool* mask_buf = static_cast<bool*>(mask.request(false).ptr);
+        auto indices = mask_to_indices(mask_buf, batch_size);
+        return step(input, indices.data(), indices.size());
+    }
+    npa_T<output_T> step(npa_T<input_T> input, idx_T indices) {
+        size_t* indices_buf = static_cast<size_t*>(indices.request(false).ptr);
+        size_t length = indices.size();
+        return step(input, indices_buf, length);
+    }
+    npa_T<output_T> step(npa_T<input_T> input, const size_t* indices, size_t length) {
+        if (size_not_equal(input.size(), batch_size)) {
+            throw std::runtime_error("Action array size different from batch size.");
+        }
+        npa_T<output_T> output { static_cast<pybind11::ssize_t>(batch_size) };
+        output_T* output_buf = static_cast<output_T*>(output.request(true).ptr);
+        input_T* input_buf = static_cast<input_T*>(input.request(false).ptr);
+
+        std::for_each({{VEC_POLICY}}indices, indices + length, [this, output_buf, input_buf](size_t i) {
+            this->get(i)->step_impl(input_buf + i, output_buf + i);
+        });
+        return output;
+    }
+    npa_T<output_T> reset() {
+        return reset(indices, batch_size);
+    }
+    npa_T<output_T> reset(mask_T mask) {
+        if (size_not_equal(mask.size(), batch_size)) {
+            throw std::runtime_error("Mask array size different from batch size.");
+        }
+        bool* mask_buf = static_cast<bool*>(mask.request(false).ptr);
+        auto indices = mask_to_indices(mask_buf, batch_size);
+        return reset(indices.data(), indices.size());
+    }
+    npa_T<output_T> reset(idx_T indices) {
+        size_t* indices_buf = static_cast<size_t*>(indices.request(false).ptr);
+        size_t length = indices.size();
+        return reset(indices_buf, length);
+    }
+    npa_T<output_T> reset(const size_t* indices, size_t length) {
+        npa_T<output_T> output { static_cast<pybind11::ssize_t>(batch_size) };
+        output_T* output_buf = static_cast<output_T*>(output.request(true).ptr);
+        std::for_each({{VEC_POLICY}}indices, indices + length, [this, output_buf](size_t i) {
+            this->get(i)->reset_impl(output_buf + i);
+        });
+        return output;
+    }
+    std::vector<uint32_t> seed() {
+        std::random_device rd;
+        auto s = rd();
+        return seed(s);
+    }
+    std::vector<uint32_t> seed(uint32_t s) {
+        rng_T rng; rng.seed(s);
+        std::vector<uint32_t> seeds(batch_size);
+        get(0)->seed(s); seeds[0] = s;
+        for (size_t i = 1; i < batch_size; i++)
+        {
+            auto seed = rng();
+            get(i)->seed(seed);
+            seeds[i] = seed;
+        }
+        return seeds;
+    }
+    RawEnv& at(size_t index) {
+        if (index >= batch_size) {
+            throw std::out_of_range("Index out of range.");
+        }
+        return *get(index);
+    }
+    size_t size() {
+        return batch_size;
+    }
+    ~RawEnvVec() {
+        static_assert(std::is_trivially_destructible_v<RawEnv>);
+        delete[] indices;
+        delete[] storage;
+    }
+};
+{% endif %}
+
+void slxpy_bind_raw_env(::pybind11::module_& m) {
+    pybind11::class_<RawEnv> RawEnv_PB(m, "RawEnv", pybind11::module_local());
+    RawEnv_PB
+        .def(pybind11::init())
+        .def("step", &RawEnv::step, "", "action"_a.noconvert())
+        .def("reset", &RawEnv::reset, "")
+        .def("seed", pybind11::overload_cast<>(&RawEnv::seed), "")
+        .def("seed", pybind11::overload_cast<uint32_t>(&RawEnv::seed), "", "seed"_a)
+        .def_property_readonly("model_class", &RawEnv::model_class);
+    {% if ENV.use_vec -%}
+    pybind11::class_<RawEnvVec> RawEnvVec_PB(m, "RawEnvVec", pybind11::module_local());
+    RawEnvVec_PB
+        .def(pybind11::init<size_t>(), "batch_size"_a)
+        .def("step", pybind11::overload_cast<npa_T<input_T>>(&RawEnvVec::step), "", "action"_a.noconvert())
+        .def("step", pybind11::overload_cast<npa_T<input_T>, mask_T>(&RawEnvVec::step), "", "action"_a.noconvert(), "mask"_a.noconvert())
+        .def("step", pybind11::overload_cast<npa_T<input_T>, idx_T>(&RawEnvVec::step), "", "action"_a.noconvert(), "indices"_a.noconvert())
+        .def("reset", pybind11::overload_cast<>(&RawEnvVec::reset), "")
+        .def("reset",pybind11::overload_cast<mask_T>(&RawEnvVec::reset), "", "mask"_a.noconvert())
+        .def("reset",pybind11::overload_cast<idx_T>(&RawEnvVec::reset), "", "indices"_a.noconvert())
+        .def("seed", pybind11::overload_cast<>(&RawEnvVec::seed), "")
+        .def("seed", pybind11::overload_cast<uint32_t>(&RawEnvVec::seed), "", "seed"_a)
+        .def("at", &RawEnvVec::at, pybind11::return_value_policy::reference_internal)
+        .def("size", &RawEnvVec::size);
+    {% endif %}
+}
+}
+
+using slxpy::env::slxpy_bind_raw_env;

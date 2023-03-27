@@ -1,0 +1,37 @@
+{%- from "prelude.jinja" import module with context -%}
+import {{ module.name }}
+
+model_class = {{ module.name }}.{{ module.model_class.name }}()
+model_class.initialize()
+model_class.step()
+del model_class
+
+{% if module.env.use_raw -%}
+raw_env = {{ module.name }}.RawEnv()
+raw_env.seed()
+raw_env.reset()
+# raw_env.step(act)
+{%- endif %}
+
+{% if module.env.use_raw and module.env.use_vec -%}
+batch_size = 16
+raw_env_vec = {{ module.name }}.RawEnvVec(batch_size)
+raw_env_vec.seed()
+raw_env_vec.reset()
+# raw_env_vec.step(act)
+{%- endif %}
+
+{% if module.env.use_gym -%}
+gym_env = {{ module.name }}.GymEnv()
+gym_env.seed()
+gym_env.reset()
+# gym_env.step(act)
+{%- endif %}
+
+{% if module.env.use_gym and module.env.use_vec -%}
+batch_size = 16
+gym_env_vec = {{ module.name }}.GymEnvVec(batch_size)
+gym_env_vec.seed()
+gym_env_vec.reset()
+# gym_env_vec.step(act)
+{%- endif %}

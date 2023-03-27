@@ -1,0 +1,36 @@
+## Config version. DO NOT CHANGE.
+__version__ = "{{config.VERSION}}"
+
+use_raw = {{config.use_raw | tf}}
+use_gym = {{config.use_gym | tf}}
+use_rng = {{config.use_rng | tf}}
+use_vec = {{config.use_vec | tf}}
+vec_parallel = {{config.vec_parallel | tf}}
+
+[gym]
+    # action_key = "act"
+    # observation_key = "obs"
+    # reward_key = "rew"
+    # done_key = "done"
+    info = {{config.gym.info | tf}}
+    type_coercion = {{config.gym.type_coercion | tf}}
+
+    reward_range = ["-inf", "inf"]
+
+    [gym.action_space]
+        type = "Box"
+        low = {{config.gym.action_space.low}}
+        high = {{config.gym.action_space.high}}
+        shape = [{{config.gym.action_space.shape | join(', ')}}]
+        dtype = "{{config.gym.action_space.dtype.name}}"
+
+    [gym.observation_space]
+        type = "Box"
+        low = {{config.gym.observation_space.low}}
+        high = {{config.gym.observation_space.high}}
+        shape = [{{config.gym.observation_space.shape | join(', ')}}]
+        dtype = "{{config.gym.observation_space.dtype.name}}"
+
+[reset]
+    first_step = {{config.reset.first_step | tf}}
+    # input = "{}"

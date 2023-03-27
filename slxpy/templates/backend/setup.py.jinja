@@ -1,0 +1,84 @@
+{%- from "prelude.jinja" import sources, headers, module with context -%}
+import setuptools, pybind11.setup_helpers, pathlib
+
+PROJECT_ROOT = pathlib.Path(".")
+assert pathlib.Path(__file__).parent.absolute() == PROJECT_ROOT.absolute(), "Must compile in project folder!"
+
+extensions = [
+  pybind11.setup_helpers.Pybind11Extension(
+    name="{{ module.name }}",
+    sources=[
+      {% for source in sources -%}
+        str(PROJECT_ROOT / "model" / "{{source}}"),
+      {% endfor %}
+      str(PROJECT_ROOT / "module.cc"),
+    ],
+    include_dirs=[
+      str(PROJECT_ROOT / "include"),
+      str(PROJECT_ROOT / "model"),
+    ],
+    define_macros=[
+    {{"  "}}("FMT_HEADER_ONLY", None),
+    {{"  "}}("PORTABLE_WORDSIZES", None),
+    {{"  "}}("_CRT_SECURE_NO_WARNINGS", None),
+    {{"  "}}("SLXPY_EXTENSION_NAME", "{{ module.name }}"),
+    {% if module.version|length > 0 -%}{{"  "}}("SLXPY_EXTENSION_VERSION", "{{ module.version }}"),{% endif %}
+    {% if module.author|length > 0 -%}{{"  "}}("SLXPY_EXTENSION_AUTHOR", "{{ module.author }}"),{% endif %}
+    {% if module.license|length > 0 -%}{{"  "}}("SLXPY_EXTENSION_LICENSE", "{{ module.license }}"),{% endif -%}
+    ],
+    cxx_std=17,
+  )
+]
+
+from setuptools.command.build_ext import build_ext
+class custom_build_ext(build_ext):
+  user_options = [
+    ('no-stub', 'S', 'Skip stub generation')
+  ]
+
+  def initialize_options(self):
+    super().initialize_options()
+    self.no_stub = None
+
+  def build_extensions(self):
+    super().build_extensions()
+
+    if not self.no_stub:
+      for ext in self.extensions:
+        if isinstance(ext, pybind11.setup_helpers.Pybind11Extension):
+          self._generate_stub(ext)
+        else:
+          print(f"Skipping stub generation for extension {ext.name}")
+
+  def _generate_stub(self, ext):
+    try:
+      from pybind11_stubgen import main as stubgen
+    except:
+      import warnings
+      warnings.warn("pybind11-stubgen not found, stubs will not be generated")
+      return
+
+    ext_name: str = ext.name
+    import sys
+    build_lib = pathlib.Path(self.build_lib).absolute()
+    sys.path.insert(0, str(build_lib))
+
+    stubgen(
+      args=[
+        "--no-setup-py",
+        "--output-dir", str(build_lib),
+        "--root-module-suffix", "",
+        "--bare-numpy-ndarray",  # ndarray with generic is not quite useful yet
+        ext_name
+      ]
+    )
+    stub_dir = build_lib / ext_name
+    for stub_file in stub_dir.glob("*.pyi"):
+      self._postprocess_stub(stub_file)
+
+  def _postprocess_stub(self, stub_file: pathlib.Path):
+    stub = stub_file.read_text()
+    stub = stub.replace("numpy.dtype[void]", "numpy.dtype[numpy.void]")
+    stub_file.write_text(stub)
+
+setuptools.setup(name="{{ module.name }}", version={{ module.version }}, ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })

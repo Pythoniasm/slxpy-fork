@@ -1,0 +1,65 @@
+# Config version. DO NOT CHANGE.
+__version__ = "{{config.VERSION}}"
+
+# Simulink model name without .slx suffix
+model = "{{config.model}}"
+
+# Section simulink: settings about simulink code generation
+[simulink]
+    # Name of fixed-step solver
+    # Option: "FixedStepAuto" | "FixedStepDiscrete" |"ode8"| "ode5" | "ode4" | "ode3" | "ode2" | "ode1" | "ode14x"
+    solver = "{{config.simulink.solver}}"
+
+    # Feature: support absolute time (e.g. <Clock> block)
+    # Option: true | false
+    absolute_time = {{config.simulink.absolute_time | tf}}
+
+    # Feature: integer arithmetic only, i.e. no float point math
+    # Option: true | false
+    integer_code = {{config.simulink.integer_code | tf}}
+
+    # Feature: support non-finite number (Nan and +-Inf)
+    # Option: true | false
+    non_finite = {{config.simulink.non_finite | tf}}
+
+    # Feature: support complex number
+    # Option: true | false
+    complex = {{config.simulink.complex | tf}}
+
+    # Feature: support continuous time, for blocks with continuous state (e.g <Integrator> Block)
+    # Option: true | false
+    continuous_time = {{config.simulink.continuous_time | tf}}
+
+    # Feature: support variable size signal
+    # Option: true | false
+    variable_size_signal = {{config.simulink.variable_size_signal | tf}}
+
+    # Feature: support non-inlined s-function
+    # Option: true | false
+    non_inlined_sfcn = {{config.simulink.non_inlined_sfcn | tf}}
+
+# Section cpp: settings about cpp interface
+[cpp]
+    # Name of model class
+    class_name = "{{config.cpp.class_name}}"
+
+    # Optional namespace, leave empty or choose a valid c++ namespace identifier
+    namespace = "{{config.cpp.namespace}}"
+
+# Section info: Information about the model
+[info]
+    # Description of the model
+    # Option: "<auto>" (read it from Simulink model description) | "..."
+    description = "{{config.info.description}}"
+
+    # Version of the model
+    # Option: "<auto>" (read it from Simulink model version) | "..."
+    version = "{{config.info.version}}"
+
+    # Author of the model
+    # Option: "<auto>" (read it from Simulink model creator) | "..."
+    author = "{{config.info.author}}"
+
+    # License of the model:
+    # Option: "<no-license>" (no license is specified) | "..."
+    license = "{{config.info.license}}"
