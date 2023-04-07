@@ -8,7 +8,9 @@ from slxpy.cli.utils import ensure_slxpy_project
 
 
 @click.command()
-@click.option('--all', is_flag=True, help="Complete cleanup, keeping config files only.")
+@click.option(
+    "--all", is_flag=True, help="Complete cleanup, keeping config files only."
+)
 @click.pass_context
 def clean(ctx: click.Context, all: bool):
     """
@@ -18,6 +20,7 @@ def clean(ctx: click.Context, all: bool):
     ensure_slxpy_project(workdir)
 
     import shutil
+
     def rmdir(dir: Path):
         if dir.exists():
             assert dir.is_dir()
@@ -38,6 +41,7 @@ def clean(ctx: click.Context, all: bool):
     rmdir(workdir / "include")
 
     from slxpy.backend.renderer import assets
+
     generated_files: List[str] = [asset.name for asset in assets] + [C.project_ir_name]
     for f in generated_files:
         rmfile(workdir / f)
@@ -45,4 +49,3 @@ def clean(ctx: click.Context, all: bool):
     if all:
         rmdir(workdir / "model")
         rmfile(workdir / C.metadata_name)
-

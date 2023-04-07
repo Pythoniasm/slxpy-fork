@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from typing import ClassVar, Dict, List, Literal, TYPE_CHECKING, Tuple, Type, Union
+from typing import ClassVar, Dict, List, Literal, TYPE_CHECKING, Type, Union
 import numpy as np
 
 from slxpy.common.enum import FieldMode
@@ -7,19 +7,24 @@ from slxpy.common.enum import FieldMode
 if TYPE_CHECKING:
     from slxpy.common.context import Field
 
+
 def check_shape(array_like, shape: List[int]):
     size = np.prod(shape).item()
     array = np.array(array_like)
     if array.size != 1:
         assert array.ndim == 1, "Currently only support one dimensional vector."
-        assert array.size == size, f"Size inconsistency, broadcast is currently unsupported."
+        assert (
+            array.size == size
+        ), "Size inconsistency, broadcast is currently unsupported."
+
 
 @dataclass
 class InitConfig:
     type: Literal["seed", "constant", "uniform", "custom"]
 
     init_name: ClassVar[str] = ""
-    mapping: ClassVar[Dict[str, Type['InitConfig']]] = {}
+    mapping: ClassVar[Dict[str, Type["InitConfig"]]] = {}
+
     def __init_subclass__(cls):
         InitConfig.mapping[cls.init_name] = cls
 
@@ -33,23 +38,23 @@ class InitConfig:
             return cls(type=type)
 
     def asdict(self, dict_filter):
-        d = {
-            "type": self.type
-        }
+        d = {"type": self.type}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
 
     @staticmethod
-    def unique(inits: List['InitConfig']):
+    def unique(inits: List["InitConfig"]):
         return list(set(type(init) for init in inits))
 
     def check_basic_compatibility(self, field: "Field"):
         if field.mode in (FieldMode.STRUCT, FieldMode.STRUCT_ARRAY):
-            raise ValueError("For struct parameters, use \"custom\" type initialization.")
+            raise ValueError('For struct parameters, use "custom" type initialization.')
+
 
 @dataclass
 class SeedInitConfig(InitConfig):
     init_name: ClassVar[str] = "seed"
+
 
 @dataclass
 class ConstantInitConfig(InitConfig):
@@ -58,18 +63,13 @@ class ConstantInitConfig(InitConfig):
 
     @staticmethod
     def reconstruct(d: dict):
-        return ConstantInitConfig(
-            type=d["type"],
-            value=d["value"]
-        )
+        return ConstantInitConfig(type=d["type"], value=d["value"])
 
     def asdict(self, dict_filter):
-        d = {
-            "type": self.type,
-            "value": self.value
-        }
+        d = {"type": self.type, "value": self.value}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class UniformInitConfig(InitConfig):
@@ -79,18 +79,10 @@ class UniformInitConfig(InitConfig):
 
     @staticmethod
     def reconstruct(d: dict):
-        return UniformInitConfig(
-            type=d["type"],
-            low=d["low"],
-            high=d["high"]
-        )
+        return UniformInitConfig(type=d["type"], low=d["low"], high=d["high"])
 
     def asdict(self, dict_filter):
-        d = {
-            "type": self.type,
-            "low": self.low,
-            "high": self.high
-        }
+        d = {"type": self.type, "low": self.low, "high": self.high}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
 
@@ -103,6 +95,7 @@ class UniformInitConfig(InitConfig):
         else:
             assert isinstance(low, float) and isinstance(high, float)
 
+
 @dataclass
 class CustomInitConfig(InitConfig):
     code: str
@@ -110,15 +103,9 @@ class CustomInitConfig(InitConfig):
 
     @staticmethod
     def reconstruct(d: dict):
-        return CustomInitConfig(
-            type=d["type"],
-            code=d["code"]
-        )
+        return CustomInitConfig(type=d["type"], code=d["code"])
 
     def asdict(self, dict_filter):
-        d = {
-            "type": self.type,
-            "code": self.code
-        }
+        d = {"type": self.type, "code": self.code}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)

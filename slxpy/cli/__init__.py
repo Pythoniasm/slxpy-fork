@@ -6,8 +6,14 @@ from slxpy.cli.utils import is_debug, set_debug
 
 
 @click.group()
-@click.option('--debug', is_flag=True, help="Enable debug mode.")
-@click.option('--workdir', '-w', default=".", type=click.Path(file_okay=False, resolve_path=True, path_type=Path), help="Working directory, must be empty or nonexistent. (Default to cwd)")
+@click.option("--debug", is_flag=True, help="Enable debug mode.")
+@click.option(
+    "--workdir",
+    "-w",
+    default=".",
+    type=click.Path(file_okay=False, resolve_path=True, path_type=Path),
+    help="Working directory, must be empty or nonexistent. (Default to cwd)",
+)
 @click.pass_context
 def app(ctx: click.Context, workdir: Path, debug: bool):
     set_debug(debug)

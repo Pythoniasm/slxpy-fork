@@ -1,9 +1,11 @@
 import textwrap
+import subprocess
+import sys
+
 from pathlib import Path
 
 import click
 
-import slxpy.common.constants as C
 from slxpy.cli.utils import ensure_slxpy_project, get_plat_specifier, is_debug
 
 
@@ -19,8 +21,10 @@ def frontend(ctx: click.Context):
 
     click.echo("Execute frontend.", nl=False)
     from slxpy.frontend.frontend import adapt_metadata
+
     adapt_metadata(workdir)
     click.secho(" SUCCESS", fg="green")
+
 
 @click.command()
 @click.pass_context
@@ -34,11 +38,13 @@ def backend(ctx: click.Context):
 
     click.echo("Execute backend.", nl=False)
     from slxpy.backend.renderer import render
+
     render(workdir, is_debug())
     click.secho(" SUCCESS", fg="green")
 
+
 @click.command()
-@click.option('--build', is_flag=True, help="Also build the project.")
+@click.option("--build", is_flag=True, help="Also build the project.")
 @click.pass_context
 def generate(ctx: click.Context, build: bool):
     """
@@ -51,7 +57,6 @@ def generate(ctx: click.Context, build: bool):
     ctx.invoke(frontend)
     ctx.invoke(backend)
     if build:
-        import subprocess, sys
         args = [sys.executable, "setup.py", "build"]
         click.echo(f"Run \"{' '.join(args)}\" to build extension.")
         cp = subprocess.run(args, cwd=workdir)
@@ -60,9 +65,11 @@ def generate(ctx: click.Context, build: bool):
         libdir = workdir / "build" / f"lib{plat_specifier}"
         click.echo(f"\nBuild successful. Check {libdir} for output.")
     else:
-        output_text = textwrap.dedent(f"""\
+        output_text = textwrap.dedent(
+            f"""\
         To build the extension, run in command line:
             > cd "{workdir}"
             > python setup.py build
-        """).strip()
+        """
+        ).strip()
         click.echo(output_text)

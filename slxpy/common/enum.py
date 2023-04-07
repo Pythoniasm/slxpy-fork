@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FieldMode(Enum):
     MODEL = 0
     PLAIN = 1

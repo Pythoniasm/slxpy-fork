@@ -1,6 +1,10 @@
+# Tools
+.ruff_cache/
+
 # Python
 __pycache__/
 build/
+dist/
 *.egg-info/
 
 PKG-INFO
