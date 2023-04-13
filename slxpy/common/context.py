@@ -391,7 +391,7 @@ class Context:
                 return {k: v for k, v in x.items() if _concise_predicate((k, v))}
 
         d = {"__version__": Context.VERSION, **self.asdict(dict_filter)}
-        json.dump(d, fp, indent=4, sort_keys=False)
+        json.dump(d, fp, indent=4, sort_keys=True)
 
     @staticmethod
     def reconstruct(d: dict):
