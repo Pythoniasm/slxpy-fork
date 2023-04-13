@@ -16,7 +16,7 @@ long_description = (cwd / "README.md").read_text()
 
 setuptools.setup(
     name="slxpy",
-    version="1.6.1",
+    version="1.6.2",
     description="Simulink Python binding generator.",
     long_description=long_description,
     long_description_content_type="text/markdown",

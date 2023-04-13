@@ -33,6 +33,7 @@ Toolchain for seamlessly generating efficient Simulink-to-Python binding and gym
   - [Implementation note](#implementation-note)
     - [About stack allocation](#about-stack-allocation)
     - [About model class Copy/Move Constructible/Assignable](#about-model-class-copymove-constructibleassignable)
+  - [Changelog](#changelog)
 
 
 ## Flowchart
@@ -425,3 +426,8 @@ After identifying the problem, stack allocations are changed to heap allocation 
 Simulink generated C++ class do not forbid these four default constructors, but pointers in RTModel may point to
 invalid locations if `initialize` is not called again.
 So, avoid calling these four default constructors explicitly or implicitly.
+
+## Changelog
+
+- v1.6.2 (Patch)
+  - Multi-line `json` files with indentations of four whitespaces for proper support of git tracking generated models.

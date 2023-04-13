@@ -17,7 +17,11 @@ def create_jinja_env(package_path: str):
         keep_trailing_newline=True,
         # trim_blocks=True,
     )
-    env.policies["json.dumps_kwargs"] = {"sort_keys": True, "ensure_ascii": False}
+    env.policies["json.dumps_kwargs"] = {
+        "indent": 4,
+        "sort_keys": True,
+        "ensure_ascii": False,
+    }
     return env
 
 
