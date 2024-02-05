@@ -7,7 +7,7 @@ def tsort(am: np.ndarray) -> List[int]:
     assert am.shape[0] == am.shape[1], f"Adjacency matrix must be square, but got shape {am.shape}"
     verts = am.shape[0]
 
-    labels = []  # List that will contain the sorted elements
+    elements = []  # List that will contain the sorted elements
     s = np.zeros(verts, dtype=np.bool_)
     s[~am.any(axis=0)] = 1
 
@@ -18,7 +18,7 @@ def tsort(am: np.ndarray) -> List[int]:
             break
         vert = nz[0]
         s[vert] = 0
-        labels.append(vert)
+        elements.append(vert)
         row: np.ndarray = am[vert, :]
         indices = row.nonzero()[0]
         row.fill(0)
@@ -28,4 +28,4 @@ def tsort(am: np.ndarray) -> List[int]:
     if np.any(am):
         raise ValueError("Adjacency matrix contains circular structure.")
     else:
-        return labels
+        return elements
