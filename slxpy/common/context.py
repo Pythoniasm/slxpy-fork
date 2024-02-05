@@ -1,16 +1,18 @@
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field, fields
 from functools import cached_property
-from slxpy.common.enum import FieldMode
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, TYPE_CHECKING, TextIO, Tuple, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, TextIO, Tuple, Union
+
 import numpy as np
-import json
 
 import slxpy.common.constants as C
-from slxpy.common.tsort import tsort
+from slxpy.common.enum import FieldMode
 from slxpy.common.env_config import Config as EnvConfig
+from slxpy.common.tsort import tsort
 
 # NOTE: Currently nested struct hierarchy is dropped, seeking use-case and better implementation.
+
 
 @dataclass
 class Field:
@@ -40,7 +42,8 @@ class Field:
         Transpose dimensions here to make a F-contiguous array C-contiguous.
         See also: tune_codegen_config.m
         """
-        if self.raw_shape is None: return None
+        if self.raw_shape is None:
+            return None
         if len(self.raw_shape) == 2 and (self.raw_shape[0] == 1 or self.raw_shape[1] == 1):
             # Workaround for 1-dimensional InstP array got generated as [x 1]
             # Consider put the logic here or MATLAB script postprocess.m
@@ -71,24 +74,13 @@ class Field:
         else:
             raise ValueError(f"Unsupported field mode: {mode}")
 
-        return Field(
-            name=d["name"],
-            doc=d.get("doc", ""),
-            mode=mode,
-            raw_shape=shape,
-            type=type
-        )
+        return Field(name=d["name"], doc=d.get("doc", ""), mode=mode, raw_shape=shape, type=type)
 
     def asdict(self, dict_filter):
-        d = {
-            "name": self.name,
-            "doc": self.doc,
-            "mode": self.mode.value,
-            "shape": self.raw_shape,
-            "type": self.type
-        }
+        d = {"name": self.name, "doc": self.doc, "mode": self.mode.value, "shape": self.raw_shape, "type": self.type}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class Enumerator:
@@ -101,9 +93,10 @@ class Enumerator:
         return Enumerator(name=d["name"], doc=d.get("doc", ""), value=d["value"])
 
     def asdict(self, dict_filter):
-        d = { "name": self.name, "doc": self.doc, "value": self.value }
+        d = {"name": self.name, "doc": self.doc, "value": self.value}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class Type:
@@ -129,7 +122,7 @@ class Type:
 
     @cached_property
     def field_dict(self):
-        return { field.name: field for field in self.fields }
+        return {field.name: field for field in self.fields}
 
     @staticmethod
     def reconstruct(d: dict):
@@ -142,7 +135,7 @@ class Type:
             doc=d.get("doc", ""),
             location=location,
             is_enum=is_enum,
-            fields=[FieldCls.reconstruct(f) for f in d["fields"]]
+            fields=[FieldCls.reconstruct(f) for f in d["fields"]],
         )
         return t
 
@@ -156,18 +149,20 @@ class Type:
             "_id": self._id,
             "_alias_name": self._alias_name,
             "_binding_name": self._binding_name,
-            "_binding_identifier": self._binding_identifier
+            "_binding_identifier": self._binding_identifier,
         }
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
 
+
 class TypeContainer(Sequence):
-    def __init__(self, types: List[Type], model_class: 'ModelClass'):
+    def __init__(self, types: List[Type], model_class: "ModelClass"):
         super().__init__()
         self._mc = model_class
         self._storage: List[Type] = []
         self._name_map: Dict[str, int] = {}
-        for type in types: self._add(type)
+        for type in types:
+            self._add(type)
 
     def _add(self, type: Type):
         if type.location == "model_class":
@@ -183,7 +178,8 @@ class TypeContainer(Sequence):
 
     def lookup(self, name: str):
         for type in self._storage:
-            if type.name == name: return type
+            if type.name == name:
+                return type
         raise LookupError("Can't find type")
 
     @cached_property
@@ -219,10 +215,11 @@ class TypeContainer(Sequence):
         verts = len(self._storage)
         am = np.zeros((verts, verts), dtype=np.bool_)
         for col, item in enumerate(self._storage):
-            for field in item.fields:
-                if isinstance(field, Field) and field.type is not None:
-                    if field.type == "void": continue
-                    row = self._name_map[field.type]
+            for this_field in item.fields:
+                if isinstance(this_field, Field) and this_field.type is not None:
+                    if this_field.type == "void":
+                        continue
+                    row = self._name_map[this_field.type]
                     am[row, col] = 1
         return am
 
@@ -236,11 +233,12 @@ class TypeContainer(Sequence):
         return len(self._storage)
 
     @staticmethod
-    def reconstruct(ds: list, model_class: 'ModelClass'):
+    def reconstruct(ds: list, model_class: "ModelClass"):
         return TypeContainer([Type.reconstruct(d) for d in ds], model_class)
 
     def asdicts(self, dict_filter):
         return [t.asdict(dict_filter) for t in self._storage]
+
 
 @dataclass
 class Method:
@@ -253,9 +251,10 @@ class Method:
         return Method(name=d["name"], doc=d.get("doc", ""))
 
     def asdict(self, dict_filter):
-        d = { "name": self.name, "doc": self.doc }
+        d = {"name": self.name, "doc": self.doc}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class ModelClass:
@@ -304,10 +303,11 @@ class ModelClass:
             "type_mapping": self.type_mapping,
             "_alias_name": self._alias_name,
             "_binding_name": self._binding_name,
-            "_binding_identifier": self._binding_identifier
+            "_binding_identifier": self._binding_identifier,
         }
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class Module:
@@ -332,7 +332,7 @@ class Module:
             license=d["license"],
             model_class=model_class,
             types=types,
-            env=EnvConfig.reconstruct(d["env"])
+            env=EnvConfig.reconstruct(d["env"]),
         )
 
     def asdict(self, dict_filter):
@@ -344,10 +344,11 @@ class Module:
             "license": self.license,
             "model_class": self.model_class.asdict(dict_filter),
             "types": self.types.asdicts(dict_filter),
-            "env": self.env.asdict(dict_filter)
+            "env": self.env.asdict(dict_filter),
         }
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
+
 
 @dataclass
 class Context:
@@ -364,33 +365,23 @@ class Context:
 
     def dump(self, fp: TextIO, debug: bool = False):
         if debug:
-            dict_filter = lambda x:x
+            dict_filter = lambda x: x
         else:
+
             def _concise_predicate(pair: Tuple[str, Any]):
                 k, v = pair
-                return (
-                    not k.startswith("_")
-                    and v is not None
-                    and (k != "doc" or v != "")
-                )
-            dict_filter: Callable[[dict], dict] = lambda x: {k:v for k, v in x.items() if _concise_predicate((k, v))}
+                return not k.startswith("_") and v is not None and (k != "doc" or v != "")
+
+            dict_filter: Callable[[dict], dict] = lambda x: {k: v for k, v in x.items() if _concise_predicate((k, v))}
         d = {"__version__": Context.VERSION, **self.asdict(dict_filter)}
-        json.dump(d, fp, sort_keys=False)
+        json.dump(d, fp, indent=4, sort_keys=True)
 
     @staticmethod
     def reconstruct(d: dict):
-        return Context(
-            sources=d["sources"],
-            headers=d["headers"],
-            module=Module.reconstruct(d["module"])
-        )
+        return Context(sources=d["sources"], headers=d["headers"], module=Module.reconstruct(d["module"]))
 
     def asdict(self, dict_filter):
-        d = {
-            "sources": self.sources,
-            "headers": self.headers,
-            "module": self.module.asdict(dict_filter)
-        }
+        d = {"sources": self.sources, "headers": self.headers, "module": self.module.asdict(dict_filter)}
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
 

@@ -1,4 +1,7 @@
-import textwrap, subprocess, os, json
+import json
+import os
+import subprocess
+import textwrap
 from pathlib import Path
 from typing import List
 
@@ -9,12 +12,16 @@ def check_conda_installation():
     try:
         get_conda_executable()
     except KeyError:
-        raise click.ClickException(textwrap.dedent("""\
+        raise click.ClickException(
+            textwrap.dedent(
+                """\
         Conda package is not installed in current environment.
         To use this command, you need to check three things:
             1. Ensure anaconda/miniconda is installed in your system.
             2. This command is run in a conda environment.
-        """).strip())
+        """
+            ).strip()
+        )
 
 
 def get_conda_env_set():

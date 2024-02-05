@@ -4,8 +4,9 @@ from typing import Optional
 
 import slxpy.common.constants as C
 
-
 DEBUG = False
+
+
 def set_debug(debug: bool):
     global DEBUG
     DEBUG = debug
@@ -22,15 +23,16 @@ def ensure_slxpy_project(workdir: Path):
 
 
 def get_plat_name():
-    import setuptools  # For distutils overrides
     import distutils.util
+
     return distutils.util.get_platform()
 
 
 def get_plat_specifier(version: Optional[str] = None) -> str:
     # Ported from setuptools/_distutils/command/build.py
-    from packaging.version import parse as parse_version
     import setuptools
+    from packaging.version import parse as parse_version
+
     actual = parse_version(setuptools.__version__)
     changed = parse_version("62.1.0")
     if actual < changed:
@@ -46,6 +48,6 @@ def get_plat_specifier(version: Optional[str] = None) -> str:
             version = version.replace(".", "")
             current = f"{sys.version_info.major}{sys.version_info.minor}"
             assert tag.endswith(current)
-            tag = tag[:-len(current)] + version
+            tag = tag[: -len(current)] + version
         plat_name = get_plat_name()
         return f".{plat_name}-{tag}"

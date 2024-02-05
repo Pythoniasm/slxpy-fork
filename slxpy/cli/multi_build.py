@@ -1,17 +1,23 @@
-import os, shutil
+import shutil
 from pathlib import Path
 from typing import Tuple
 
-
 import click
-from slxpy.cli.conda import check_conda_installation, create_conda_env, get_conda_env_set, remove_conda_env, run_in_conda_env
 
+from slxpy.cli.conda import (
+    check_conda_installation,
+    create_conda_env,
+    get_conda_env_set,
+    remove_conda_env,
+    run_in_conda_env,
+)
 from slxpy.cli.utils import ensure_slxpy_project, get_plat_name, get_plat_specifier
 
 # Python 3.7 & Setuptools 62.0.0 leads to a bug about EXT_SUFFIX on windows
 # So, remove this version from default list
 # See: https://github.com/pypa/setuptools/issues/3219
 DEFAULT_PYTHON_VERSIONS = ["3.8", "3.9", "3.10"]
+
 
 @click.group()
 @click.pass_context
@@ -22,7 +28,14 @@ def multi_build(ctx: click.Context):
 
 
 @multi_build.command()
-@click.option('--versions', '-v', multiple=True, default=DEFAULT_PYTHON_VERSIONS, show_default=True, help="Python version to setup conda environment with.")
+@click.option(
+    "--versions",
+    "-v",
+    multiple=True,
+    default=DEFAULT_PYTHON_VERSIONS,
+    show_default=True,
+    help="Python version to setup conda environment with.",
+)
 def setup(versions: Tuple[str, ...]):
     """
     Setup builder environment with conda.
@@ -41,7 +54,14 @@ def setup(versions: Tuple[str, ...]):
 
 
 @multi_build.command()
-@click.option('--versions', '-v', multiple=True, default=DEFAULT_PYTHON_VERSIONS, show_default=True, help="Python version to remove conda environment with.")
+@click.option(
+    "--versions",
+    "-v",
+    multiple=True,
+    default=DEFAULT_PYTHON_VERSIONS,
+    show_default=True,
+    help="Python version to remove conda environment with.",
+)
 def clean(versions: Tuple[str, ...]):
     """
     Remove builder environment.
@@ -61,9 +81,22 @@ def clean(versions: Tuple[str, ...]):
 
 
 @multi_build.command()
-@click.option('--versions', '-v', multiple=True, default=DEFAULT_PYTHON_VERSIONS, show_default=True, help="Python version to build project with.")
-@click.option('--aggregate-output', '-a', default=None, type=click.Path(file_okay=False, resolve_path=True, path_type=Path), help="Folder to aggregate build results into. [default: {workdir}/build/slxpy{plat}]")
-@click.option('--aggregate/--no-aggregate', default=True, show_default=True, help="Aggregate build results or not.")
+@click.option(
+    "--versions",
+    "-v",
+    multiple=True,
+    default=DEFAULT_PYTHON_VERSIONS,
+    show_default=True,
+    help="Python version to build project with.",
+)
+@click.option(
+    "--aggregate-output",
+    "-a",
+    default=None,
+    type=click.Path(file_okay=False, resolve_path=True, path_type=Path),
+    help="Folder to aggregate build results into. [default: {workdir}/build/slxpy{plat}]",
+)
+@click.option("--aggregate/--no-aggregate", default=True, show_default=True, help="Aggregate build results or not.")
 @click.pass_context
 def run(ctx: click.Context, versions: Tuple[str, ...], aggregate_output: Path, aggregate: bool):
     """
@@ -77,7 +110,9 @@ def run(ctx: click.Context, versions: Tuple[str, ...], aggregate_output: Path, a
     envs = get_conda_env_set()
     target_envs = set(map(_get_env_name, versions))
     if not target_envs.issubset(envs):
-        raise click.BadParameter(f"Missing environments: {target_envs - envs}, please run \"slxpy multi-build setup\" first.")
+        raise click.BadParameter(
+            f'Missing environments: {target_envs - envs}, please run "slxpy multi-build setup" first.'
+        )
     for version in versions:  # Not using target_envs as set is not ordered.
         env_name = _get_env_name(version)
         click.secho(f"Building project in {env_name}.", fg="green")
@@ -97,12 +132,14 @@ def run(ctx: click.Context, versions: Tuple[str, ...], aggregate_output: Path, a
 
 
 def _validate_python_version(version_str: str):
-    from packaging.version import parse as parse_version, Version
+    from packaging.version import Version
+    from packaging.version import parse as parse_version
+
     version = parse_version(version_str)
     if version.major != 3:
-        raise click.BadParameter(f"Only Python 3.x is supported.")
+        raise click.BadParameter("Only Python 3.x is supported.")
     elif version.minor < 7:
-        raise click.BadParameter(f"Only Python 3.7 and above is supported.")
+        raise click.BadParameter("Only Python 3.7 and above is supported.")
     else:
         major_minor: Version = parse_version(f"{version.major}.{version.minor}")
         if version != major_minor:

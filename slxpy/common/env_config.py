@@ -1,18 +1,19 @@
 import textwrap
 from dataclasses import dataclass, fields
-from typing import BinaryIO, ClassVar, Dict, List, Optional, TYPE_CHECKING, Tuple, Union
+from typing import TYPE_CHECKING, BinaryIO, ClassVar, Dict, List, Optional, Tuple, Union
 
-import tomli
 import numpy as np
+import tomli
 
 import slxpy.common.constants as C
 from slxpy.common.formatter import format_float
-from slxpy.common.mapping import dtype_mapping
 from slxpy.common.init_config import InitConfig
+from slxpy.common.mapping import dtype_mapping
 from slxpy.common.space_config import SpaceConfig
 
 if TYPE_CHECKING:
     from slxpy.common.context import Module
+
 
 @dataclass
 class GymConfig:
@@ -30,8 +31,9 @@ class GymConfig:
     @staticmethod
     def reconstruct(d: dict):
         reward_range = tuple(d["reward_range"])
-        assert len(reward_range) == 2 and all(isinstance(r, (float, str)) for r in reward_range), \
-            "reward_range must be a tuple of two floats or +/-inf, not ints"
+        assert len(reward_range) == 2 and all(
+            isinstance(r, (float, str)) for r in reward_range
+        ), "reward_range must be a tuple of two floats or +/-inf, not ints"
         return GymConfig(
             action_key=d.get("action_key", None),
             observation_key=d.get("observation_key", None),
@@ -41,7 +43,7 @@ class GymConfig:
             action_space=SpaceConfig.reconstruct(d["action_space"]),
             observation_space=SpaceConfig.reconstruct(d["observation_space"]),
             reward_range=reward_range,
-            type_coercion=d.get("type_coercion", False)
+            type_coercion=d.get("type_coercion", False),
         )
 
     def asdict(self, dict_filter):
@@ -54,7 +56,7 @@ class GymConfig:
             "action_space": self.action_space.asdict(dict_filter),
             "observation_space": self.observation_space.asdict(dict_filter),
             "reward_range": self.reward_range,
-            "type_coercion": self.type_coercion
+            "type_coercion": self.type_coercion,
         }
         assert len(d) == len(fields(self))  # Ensure no left-out
         return dict_filter(d)
@@ -75,7 +77,10 @@ class GymConfig:
 
     @staticmethod
     def default():
-        return GymConfig(None, None, None, None, True, SpaceConfig.default(), SpaceConfig.default(), ("-inf", "inf"), True)
+        return GymConfig(
+            None, None, None, None, True, SpaceConfig.default(), SpaceConfig.default(), ("-inf", "inf"), True
+        )
+
 
 @dataclass
 class ResetConfig:
@@ -93,11 +98,7 @@ class ResetConfig:
             output = None
         elif not first_step and input is not None:
             input = None
-        return ResetConfig(
-            first_step=d["first_step"],
-            input=input,
-            output=output
-        )
+        return ResetConfig(first_step=d["first_step"], input=input, output=output)
 
     def asdict(self, dict_filter):
         d = {
@@ -111,6 +112,7 @@ class ResetConfig:
     @staticmethod
     def default():
         return ResetConfig(True, None, None)
+
 
 @dataclass
 class Config:
@@ -147,7 +149,7 @@ class Config:
             vec_parallel=d["vec_parallel"],
             gym=gym_config,
             reset=reset_config,
-            parameter={k: InitConfig.reconstruct(v) for k, v in parameter_dict.items()}
+            parameter={k: InitConfig.reconstruct(v) for k, v in parameter_dict.items()},
         )
 
     def asdict(self, dict_filter):
@@ -180,7 +182,7 @@ class Config:
             vec_parallel=False,
             gym=GymConfig.default(),
             reset=ResetConfig.default(),
-            parameter={}
+            parameter={},
         )
 
     def check_basic_compatibility(self, module: "Module"):
@@ -199,7 +201,9 @@ class Config:
         if "external_outputs" not in module.model_class.type_mapping:
             raise ValueError("Model must have at least one outport.")
         if "instance_parameters" not in module.model_class.type_mapping:
-            raise ValueError(textwrap.dedent("""
+            raise ValueError(
+                textwrap.dedent(
+                    """
                 Model must have at least one parameter.
                 Environemt without parameters is most likely a modeling mistake.
                 Make sure that your tunable parameters are
@@ -207,7 +211,9 @@ class Config:
                     2. of Simulink Parameter type
                     3. with Argument checkbox checked
                 For more information, see documentation.
-                """).strip())
+                """
+                ).strip()
+            )
 
         if self.use_gym:
             # Gym compatibility check
@@ -221,7 +227,8 @@ class Config:
             assert self.gym.done_key is None or self.gym.done_key in obs_type.field_dict
 
             if isinstance(self.gym.info, list):
-                for s in self.gym.info: assert s in obs_type.field_dict
+                for s in self.gym.info:
+                    assert s in obs_type.field_dict
 
         param_type = module.types.lookup(module.model_class.type_mapping["instance_parameters"])
 
@@ -247,8 +254,8 @@ class Config:
                 self.gym.reward_key = obs_type.fields[1].name
             if self.gym.done_key is None:
                 self.gym.done_key = obs_type.fields[2].name
-            if self.gym.info == True:
+            if self.gym.info:
                 used_fields = (self.gym.observation_key, self.gym.reward_key, self.gym.done_key)
                 self.gym.info = [field.name for field in obs_type.fields if field.name not in used_fields]
-            elif self.gym.info == False:
+            elif not self.gym.info:
                 self.gym.info = []

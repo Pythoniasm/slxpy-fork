@@ -1256,7 +1256,7 @@ class basic_json // NOLINT(cppcoreguidelines-special-member-functions,hicpp-spec
 
     /// @brief serialization
     /// @sa https://json.nlohmann.me/api/basic_json/dump/
-    string_t dump(const int indent = -1,
+    string_t dump(const int indent = 4,
                   const char indent_char = ' ',
                   const bool ensure_ascii = false,
                   const error_handler_t error_handler = error_handler_t::strict) const
