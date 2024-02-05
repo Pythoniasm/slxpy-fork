@@ -4,20 +4,9 @@ from typing import BinaryIO, ClassVar, Literal
 
 import slxpy.common.constants as C
 
-
 @dataclass
 class SimulinkConfig:
-    solver: Literal[
-        "FixedStepAuto",
-        "FixedStepDiscrete",
-        "ode8",
-        "ode5",
-        "ode4",
-        "ode3",
-        "ode2",
-        "ode1",
-        "ode14x",
-    ] = "FixedStepAuto"
+    solver: Literal["FixedStepAuto", "FixedStepDiscrete","ode8", "ode5", "ode4", "ode3", "ode2", "ode1", "ode14x"] = "FixedStepAuto"
     absolute_time: bool = False
     integer_code: bool = False
     non_finite: bool = False
@@ -36,9 +25,8 @@ class SimulinkConfig:
             complex=d["complex"],
             continuous_time=d["continuous_time"],
             variable_size_signal=d["variable_size_signal"],
-            non_inlined_sfcn=d["non_inlined_sfcn"],
+            non_inlined_sfcn=d["non_inlined_sfcn"]
         )
-
 
 @dataclass
 class CppConfig:
@@ -47,8 +35,10 @@ class CppConfig:
 
     @staticmethod
     def reconstruct(d: dict):
-        return CppConfig(class_name=d["class_name"], namespace=d["namespace"])
-
+        return CppConfig(
+            class_name=d["class_name"],
+            namespace=d["namespace"]
+        )
 
 @dataclass
 class InfoConfig:
@@ -65,9 +55,8 @@ class InfoConfig:
             description=d["description"],
             version=d["version"],
             author=d["author"],
-            license=d["license"],
+            license=d["license"]
         )
-
 
 @dataclass
 class Config:
@@ -83,7 +72,7 @@ class Config:
             model=d["model"],
             simulink=SimulinkConfig.reconstruct(d["simulink"]),
             cpp=CppConfig.reconstruct(d["cpp"]),
-            info=InfoConfig.reconstruct(d["info"]),
+            info=InfoConfig.reconstruct(d["info"])
         )
 
     @staticmethod
@@ -98,5 +87,5 @@ class Config:
             model=model,
             simulink=SimulinkConfig(),
             cpp=CppConfig(class_name=class_name, namespace=namespace),
-            info=InfoConfig(),
+            info=InfoConfig()
         )

@@ -1,7 +1,4 @@
-import textwrap
-import subprocess
-import os
-import json
+import textwrap, subprocess, os, json
 from pathlib import Path
 from typing import List
 
@@ -12,16 +9,12 @@ def check_conda_installation():
     try:
         get_conda_executable()
     except KeyError:
-        raise click.ClickException(
-            textwrap.dedent(
-                """\
+        raise click.ClickException(textwrap.dedent("""\
         Conda package is not installed in current environment.
         To use this command, you need to check three things:
             1. Ensure anaconda/miniconda is installed in your system.
             2. This command is run in a conda environment.
-        """
-            ).strip()
-        )
+        """).strip())
 
 
 def get_conda_env_set():
@@ -35,16 +28,7 @@ def get_conda_env_set():
 
 
 def create_conda_env(env_name: str, packages: str):
-    args = [
-        "create",
-        "--name",
-        env_name,
-        "--channel",
-        "conda-forge",
-        "--override-channels",
-        "--yes",
-        *packages,
-    ]
+    args = ["create", "--name", env_name, "--channel", "conda-forge", "--override-channels", "--yes", *packages]
     run_conda_command(args)
 
 
@@ -54,16 +38,7 @@ def remove_conda_env(env_name: str):
 
 
 def run_in_conda_env(env_name: str, cwd: str, args: List[str]):
-    args = [
-        "run",
-        "--name",
-        env_name,
-        "--no-capture-output",
-        "--live-stream",
-        "--cwd",
-        cwd,
-        *args,
-    ]
+    args = ["run", "--name", env_name, "--no-capture-output", "--live-stream", "--cwd", cwd, *args]
     run_conda_command(args)
 
 

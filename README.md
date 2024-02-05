@@ -429,5 +429,5 @@ So, avoid calling these four default constructors explicitly or implicitly.
 
 ## Changelog
 
-- v1.6.2 (Patch)
-  - Multi-line `json` files with indentations of four whitespaces for proper support of git tracking generated models.
+- v1.6.0.post1
+  - Baseline for fork. (No change from original Python implementation slxpy==v1.6.0)

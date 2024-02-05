@@ -81,4 +81,4 @@ class custom_build_ext(build_ext):
     stub = stub.replace("numpy.dtype[void]", "numpy.dtype[numpy.void]")
     stub_file.write_text(stub)
 
-setuptools.setup(name="{{ module.name }}", version={{ module.version }}, ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })
+setuptools.setup(ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })
