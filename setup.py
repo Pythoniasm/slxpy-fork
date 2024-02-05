@@ -10,7 +10,7 @@ package_data = [str(f.relative_to(package_dir)) for f in (package_dir / "include
 long_description = (cwd / "README.md").read_text()
 
 setuptools.setup(
-    name="slxpy",
+    name="slxpy-fork",
     version="1.6.2.post1",
     description="Simulink Python binding generator.",
     long_description=long_description,
