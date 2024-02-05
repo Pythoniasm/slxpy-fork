@@ -1,9 +1,11 @@
 # Slxpy
 
-![PyPI](https://img.shields.io/pypi/v/slxpy)
+![PyPI](https://img.shields.io/pypi/v/slxpy-fork)
 [![MATLAB FileExchange](https://img.shields.io/badge/MATLAB-FileExchange-blue.svg)](https://www.mathworks.com/matlabcentral/fileexchange/100416-slxpy)
 
 Toolchain for seamlessly generating efficient Simulink-to-Python binding and gymnasium-like environment wrapper.
+
+Fork of Simulink Python binding generator from <https://pypi.org/project/slxpy> ![PyPI](https://img.shields.io/pypi/v/slxpy)
 
 ## Table of Contents
 - [Slxpy](#slxpy)
@@ -435,7 +437,7 @@ So, avoid calling these four default constructors explicitly or implicitly.
 - v1.6.1.post1
   - Updated fork to slxpy==v1.6.1
 
-- v1.6.2.post2
+- v1.6.2.post1
   - Based on v1.6.1.post1 with some improvements
     (not based on slxpy==v1.6.2, the old fork of slxpy==v1.6.2 was based on slxpy-fork==v1.6.0.post1).
   - Added model name and version via Jinja2 template of `setup.py` for better package management of compiled models.

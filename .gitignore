@@ -1,5 +1,6 @@
 # Tools
 .ruff_cache/
+.pypirc
 
 # Python
 __pycache__/
