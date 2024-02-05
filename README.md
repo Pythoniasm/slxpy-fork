@@ -431,3 +431,6 @@ So, avoid calling these four default constructors explicitly or implicitly.
 
 - v1.6.0.post1
   - Baseline for fork. (No change from original Python implementation slxpy==v1.6.0)
+
+- v1.6.1.post1
+  - Updated fork to slxpy==v1.6.1

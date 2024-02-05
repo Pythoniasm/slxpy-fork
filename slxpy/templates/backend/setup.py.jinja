@@ -1,5 +1,5 @@
 {%- from "prelude.jinja" import sources, headers, module with context -%}
-import setuptools, pybind11.setup_helpers, pathlib
+import setuptools, pybind11.setup_helpers, pathlib, contextlib
 
 PROJECT_ROOT = pathlib.Path(".")
 assert pathlib.Path(__file__).parent.absolute() == PROJECT_ROOT.absolute(), "Must compile in project folder!"
@@ -63,22 +63,24 @@ class custom_build_ext(build_ext):
     build_lib = pathlib.Path(self.build_lib).absolute()
     sys.path.insert(0, str(build_lib))
 
-    stubgen(
-      args=[
-        "--no-setup-py",
-        "--output-dir", str(build_lib),
-        "--root-module-suffix", "",
-        "--bare-numpy-ndarray",  # ndarray with generic is not quite useful yet
-        ext_name
-      ]
-    )
-    stub_dir = build_lib / ext_name
-    for stub_file in stub_dir.glob("*.pyi"):
-      self._postprocess_stub(stub_file)
+    args = [
+      "--no-setup-py",
+      "--output-dir", str(build_lib),
+      "--root-suffix", "",
+      "--enum-class-locations", f"^IndexingMode$:{ext_name}._env.IndexingMode",
+      "--enum-class-locations", f"^ActionRepeatMode$:{ext_name}._env.ActionRepeatMode",
+      ext_name,
+    ]
 
-  def _postprocess_stub(self, stub_file: pathlib.Path):
-    stub = stub_file.read_text()
-    stub = stub.replace("numpy.dtype[void]", "numpy.dtype[numpy.void]")
-    stub_file.write_text(stub)
+    with replace_argv(args):
+      stubgen()
+
+@contextlib.contextmanager
+def replace_argv(args):
+  import sys
+  old_argv = sys.argv
+  sys.argv = args
+  yield
+  sys.argv = old_argv
 
 setuptools.setup(ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })

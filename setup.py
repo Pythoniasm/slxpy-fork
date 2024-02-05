@@ -12,7 +12,7 @@ long_description = (cwd / "README.md").read_text()
 
 setuptools.setup(
     name='slxpy',
-    version='1.6.0.post1',
+    version='1.6.1.post1',
     description = "Simulink Python binding generator.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -38,7 +38,7 @@ setuptools.setup(
 
     install_requires=[
         "pybind11",
-        "pybind11-stubgen",
+        "pybind11-stubgen>=2.3",
         "Jinja2>=3.0",
         "tomli",
         "importlib_resources",
