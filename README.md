@@ -444,3 +444,6 @@ So, avoid calling these four default constructors explicitly or implicitly.
   - Based on v1.6.1.post1 with some improvements (the old fork version labeled slxpy==v1.6.2 is similar to slxpy-fork==v1.6.0.post1).
   - Added model name and version via Jinja2 template of `setup.py` for better package management of compiled models.
   - Multi-line `json` files with indentations of four whitespaces for proper support of git tracking generated models.
+
+- v1.6.1.post3
+  - Minor changes to package information
