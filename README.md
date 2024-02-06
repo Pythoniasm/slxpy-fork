@@ -432,13 +432,13 @@ So, avoid calling these four default constructors explicitly or implicitly.
 ## Changelog
 
 - v1.6.0.post1
+  - New versioning scheme, forks from slxpy are now labeled as same version with a `.postN` suffix.
   - Baseline for fork. (No change from original Python implementation slxpy==v1.6.0)
 
 - v1.6.1.post1
   - Updated fork to slxpy==v1.6.1
 
-- v1.6.2.post1
-  - Based on v1.6.1.post1 with some improvements
-    (not based on slxpy==v1.6.2, the old fork of slxpy==v1.6.2 was based on slxpy-fork==v1.6.0.post1).
+- v1.6.1.post2
+  - Based on v1.6.1.post1 with some improvements (the old fork version labeled slxpy==v1.6.2 is similar to slxpy-fork==v1.6.0.post1).
   - Added model name and version via Jinja2 template of `setup.py` for better package management of compiled models.
   - Multi-line `json` files with indentations of four whitespaces for proper support of git tracking generated models.
