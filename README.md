@@ -1,11 +1,13 @@
 # SlxPy
 
-![PyPI](https://img.shields.io/pypi/v/slxpy-fork)
-[![MATLAB FileExchange](https://img.shields.io/badge/MATLAB-FileExchange-blue.svg)](https://www.mathworks.com/matlabcentral/fileexchange/100416-slxpy)
+[![PyPI](https://img.shields.io/pypi/v/slxpy-fork)](https://pypi.org/project/slxpy-fork)
+[![GitHub Tag](https://img.shields.io/github/v/tag/Pythoniasm/slxpy-fork?label=GitHub)](https://github.com/Pythoniasm/slxpy-fork)
 
 Toolchain for seamlessly generating efficient Simulink-to-Python binding and gymnasium-like environment wrapper.
 
-Forked from `slxpy`, the Simulink-to-Python C++ bindings generator from <https://pypi.org/project/slxpy> ![PyPI](https://img.shields.io/pypi/v/slxpy)
+Forked from [`slxpy`](https://pypi.org/project/slxpy), the Simulink-to-Python C++ bindings generator as Python package and MATLAB toolbox:
+[![PyPI](https://img.shields.io/pypi/v/slxpy)](https://pypi.org/project/slxpy)
+[![MATLAB FileExchange](https://img.shields.io/badge/MATLAB-FileExchange-blue.svg)](https://www.mathworks.com/matlabcentral/fileexchange/100416-slxpy)
 
 ## Table of Contents
 - [SlxPy](#slxpy)

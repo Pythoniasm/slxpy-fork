@@ -20,7 +20,7 @@ setuptools.setup(
     keywords=["simulink", "c++", "gym", "gymnasium"],
     author="Jiang Yuxuan",
     author_email="jyx21@mails.tsinghua.edu.cn",
-    url="https://github.com/jjyyxx/slxpy",
+    url="https://github.com/Pythoniasm/slxpy-fork",
     classifiers=["Development Status :: 5 - Production/Stable", "Programming Language :: Python"],
     packages=[
         "slxpy",
