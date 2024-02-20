@@ -83,4 +83,4 @@ def replace_argv(args):
   yield
   sys.argv = old_argv
 
-setuptools.setup(name="{{ module.name }}", version={{ module.version }}, ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })
+setuptools.setup(name="{{ module.name }}", version="{{ module.version }}", ext_modules=extensions, cmdclass={ "build_ext": custom_build_ext })
