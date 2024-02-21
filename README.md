@@ -448,5 +448,5 @@ So, avoid calling these four default constructors explicitly or implicitly.
 - v1.6.1.post3
   - Minor changes to package information
 
-- v1.6.1.post3
+- v1.6.1.post4
   - Use version strings instead of numbers that otherwise would be truncated with trailing zeros or result in parsing error.
