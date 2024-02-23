@@ -450,3 +450,6 @@ So, avoid calling these four default constructors explicitly or implicitly.
 
 - v1.6.1.post4
   - Use version strings instead of numbers that otherwise would be truncated with trailing zeros or result in parsing error.
+
+- (ongoing) v1.6.1.post5
+  - Improve test extension scripts to also work with pytest
