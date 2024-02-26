@@ -13,20 +13,20 @@ template <typename Class, typename MemberType, MemberType Class::* M, bool reado
 void slxpy_bind_array_field(pybind11::class_<Class>& pb, const char *name, const char *doc) {
     if constexpr (std::is_array_v<MemberType>) {
         using BaseType = std::remove_all_extents_t<MemberType>;
-        pb.def_property_readonly(name, [](pybind11::object& obj) {
+        pb.def_property(name, [](pybind11::object& obj) {
             constexpr size_t Rank = std::rank_v<MemberType>;
             constexpr std::array<pybind11::ssize_t, Rank> Shape = get_all_extents<MemberType, Rank>(std::make_index_sequence<Rank>{});
             Class& o = obj.cast<Class&>();
             pybind11::array_t<BaseType> arr {Shape, {}, o.*M, obj};
-            if constexpr (readonly) {
-                // Credit to https://github.com/pybind/pybind11/issues/481
-                reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= ~pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
-            }
+            // if constexpr (readonly) {
+            //     // Credit to https://github.com/pybind/pybind11/issues/481
+            //     reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= ~pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
+            // }
             return arr;
         }, doc);
     } else if constexpr (std::is_class_v<MemberType> && std::is_standard_layout_v<MemberType>) {
         STATIC_WARNING(false, "Mismatch! Show readonly raw buffer instead.");
-        pb.def_property_readonly(name, [](pybind11::object& obj) {
+        pb.def_property(name, [](pybind11::object& obj) {
             Class& o = obj.cast<Class&>();
             return PyMemoryView_FromMemory(reinterpret_cast<char*>(&(o.*M)), sizeof(MemberType), PyBUF_READ);
         }, doc);
@@ -36,18 +36,18 @@ template <typename Class, typename MemberType, MemberType Class::* M, bool reado
 void slxpy_bind_array_field_with_shape(pybind11::class_<Class>& pb, const char *name, const char *doc) {
     if constexpr (std::is_array_v<MemberType>) {
         using BaseType = std::remove_all_extents_t<MemberType>;
-        pb.def_property_readonly(name, [](pybind11::object& obj) {
+        pb.def_property(name, [](pybind11::object& obj) {
             Class& o = obj.cast<Class&>();
             pybind11::array_t<BaseType> arr { { Shape... }, {}, o.*M, obj};
-            if constexpr (readonly) {
-                // Credit to https://github.com/pybind/pybind11/issues/481
-                reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= ~pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
-            }
+            // if constexpr (readonly) {
+            //     // Credit to https://github.com/pybind/pybind11/issues/481
+            //     reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= ~pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
+            // }
             return arr;
         }, doc);
     } else if constexpr (std::is_class_v<MemberType> && std::is_standard_layout_v<MemberType>) {
         STATIC_WARNING(false, "Mismatch! Show readonly raw buffer instead.");
-        pb.def_property_readonly(name, [](pybind11::object& obj) {
+        pb.def_property(name, [](pybind11::object& obj) {
             Class& o = obj.cast<Class&>();
             return PyMemoryView_FromMemory(reinterpret_cast<char*>(&(o.*M)), sizeof(MemberType), PyBUF_READ);
         }, doc);
@@ -57,7 +57,7 @@ template <typename Class, typename MemberType, MemberType Class::* M, bool reado
 void slxpy_bind_scalar_field(pybind11::class_<Class>& pb, const char *name, const char *doc) {
     static_assert(!std::is_array_v<MemberType>);
     if constexpr (readonly) {
-        pb.def_readonly(name, M, doc);
+        pb.def_readwrite(name, M, doc);
     } else {
         pb.def_readwrite(name, M, doc);
     }
