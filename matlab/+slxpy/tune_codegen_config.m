@@ -111,7 +111,7 @@ cs.set_param('EfficientFloat2IntCast', 'on');   % Remove code from floating-poin
 % cs.set_param('BufferReusableBoundary', 'on');   % Buffer for reusable subsystems
 % cs.set_param('SimCompilerOptimization', 'off');   % Compiler optimization level
 % cs.set_param('AccelVerboseBuild', 'off');   % Verbose accelerator builds
-cs_set_param_skip(cs, 'UseRowMajorAlgorithm', 'on', 'Supported since R2018a.');   % Use algorithms optimized for row-major array layout
+cs_set_param_skip(cs, 'UseRowMajorAlgorithm', 'off', 'Supported since R2018a.');   % Use algorithms optimized for row-major array layout. Yet unsupported in R2023a for many relevant blocks, see https://ww2.mathworks.cn/help/rtw/ug/code-generation-of-matrix-data-and-arrays.html
 % cs.set_param('LabelGuidedReuse', 'off');   % Use signal labels to guide buffer reuse
 % cs.set_param('DenormalBehavior', 'GradualUnderflow');   % In accelerated simulation modes, denormal numbers can be flushed to zero using the 'flush-to-zero' option.
 % cs.set_param('EfficientTunableParamExpr', 'on');   % Remove code from tunable parameter expressions that saturates out-of-range values
@@ -381,7 +381,7 @@ cs.set_param('SupportNonInlinedSFcns', simulink_cfg.non_inlined_sfcn);   % Suppo
 % cs.set_param('RemoveDisableFunc', 'off');   % Remove disable function
 cs.set_param('ParenthesesLevel', 'Nominal');   % Parentheses level
 cs.set_param('CastingMode', 'Nominal');   % Casting modes
-cs_set_param_skip(cs, 'ArrayLayout', 'Row-major', 'Supported since R2018a.');   % Array layout, NOTE: Row major, see also UseRowMajorAlgorithm L109, check for any impact on code generation
+cs_set_param_skip(cs, 'ArrayLayout', 'Column-major', 'Supported since R2018a.');   % Array layout, NOTE: Row major, see also UseRowMajorAlgorithm L109, check for any impact on code generation. Yet unsupported in R2023a for many relevant blocks, see https://ww2.mathworks.cn/help/rtw/ug/code-generation-of-matrix-data-and-arrays.html
 % cs.set_param('LUTObjectStructOrderExplicitValues', 'Size,Breakpoints,Table');   % LUT object struct order for explicit value specification
 % cs.set_param('LUTObjectStructOrderEvenSpacing', 'Size,Breakpoints,Table');   % LUT object struct order for even spacing specification
 cs_set_param_skip(cs, 'ERTHeaderFileRootName', '$R$E', 'Supported since R2018a.');   % Header files
