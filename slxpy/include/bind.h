@@ -23,17 +23,11 @@ void slxpy_bind_array_field_with_shape(pybind11::class_<Class>& pb, const char *
             return arr;
         },
         [](Class& obj, const pybind11::array_t<BaseType>& value) {
-            // Setter logic here
             if (!readonly) {
-                // Example: Set the value in obj based on the incoming array
-                // Note: You might want to add additional validation or error handling here
                 // Access the raw data pointer of the NumPy array
                 const BaseType* data = value.data();
-
                 // Perform the actual copy to the C++ array using std::memcpy
                 std::memcpy(&(obj.*M), data, sizeof(BaseType) * value.size());
-            } else {
-                throw std::runtime_error("Trying to set a read-only property.");
             }
         },
         doc);
