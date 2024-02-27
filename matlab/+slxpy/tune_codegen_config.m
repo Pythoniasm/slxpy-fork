@@ -75,7 +75,7 @@ cs.set_param('SaveFormat', 'Dataset');   % Format
 % cs.set_param('BlockReduction', 'on');   % Block reduction
 % cs.set_param('BooleanDataType', 'on');   % Implement logic signals as Boolean data (vs. double)
 % cs.set_param('ConditionallyExecuteInputs', 'on');   % Conditional input branch execution
-cs.set_param('DefaultParameterBehavior', 'Tunable');   % Default parameter behavior
+% cs.set_param('DefaultParameterBehavior', 'Inlined');   % Default parameter behavior
 % cs.set_param('UseDivisionForNetSlopeComputation', 'off');   % Use division for fixed-point net slope computation
 % cs.set_param('GainParamInheritBuiltInType', 'off');   % Gain parameters inherit a built-in integer type that is lossless
 % cs.set_param('UseFloatMulNetSlope', 'off');   % Use floating-point multiplication to handle net slope corrections
