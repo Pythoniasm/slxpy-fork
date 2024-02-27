@@ -13,24 +13,27 @@ template <typename Class, typename MemberType, MemberType Class::* M, bool reado
 void slxpy_bind_array_field_with_shape(pybind11::class_<Class>& pb, const char *name, const char *doc) {
     if constexpr (std::is_array_v<MemberType>) {
         using BaseType = std::remove_all_extents_t<MemberType>;
-        pb.def_property(name, [](pybind11::object& obj) {
-            Class& o = obj.cast<Class&>();
-            pybind11::array_t<BaseType> arr { { Shape... }, {}, o.*M, obj};
-            if constexpr (readonly) {
-                // Credit to https://github.com/pybind/pybind11/issues/481
-                reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
-            }
-            return arr;
-        },
-        [](Class& obj, const pybind11::array_t<BaseType>& value) {
-            if (!readonly) {
-                // Access the raw data pointer of the NumPy array
-                const BaseType* data = value.data();
-                // Perform the actual copy to the C++ array using std::memcpy
-                std::memcpy(&(obj.*M), data, sizeof(BaseType) * value.size());
-            }
-        },
-        doc);
+        pb.def_property(
+            name,
+            [](pybind11::object& obj) {
+                Class& o = obj.cast<Class&>();
+                pybind11::array_t<BaseType> arr { { Shape... }, {}, o.*M, obj};
+                if constexpr (readonly) {
+                    // Credit to https://github.com/pybind/pybind11/issues/481
+                    reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
+                }
+                return arr;
+            },
+            [](Class& obj, const pybind11::array_t<BaseType>& value) {
+                if (!readonly) {
+                    // Access the raw data pointer of the NumPy array
+                    const BaseType* data = value.data();
+                    // Perform the actual copy to the C++ array using std::memcpy
+                    std::memcpy(&(obj.*M), data, sizeof(BaseType) * value.size());
+                }
+            },
+            doc
+        );
     } else if constexpr (std::is_class_v<MemberType> && std::is_standard_layout_v<MemberType>) {
         STATIC_WARNING(false, "Mismatch! Show readonly raw buffer instead.");
         pb.def_property_readonly(name, [](pybind11::object& obj) {

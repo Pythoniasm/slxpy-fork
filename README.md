@@ -453,3 +453,5 @@ So, avoid calling these four default constructors explicitly or implicitly.
 
 - (ongoing) v1.6.1.post5
   - Improve test extension scripts to also work with pytest
+  - Structs are now read/write properties after pybind11 build if they are writable in the C++ code
+  - Defaults to row-major order for widely-used features-last tensor definitions, defaults also to UseRowMajorAlgorithm, matches now C++ and numpy default.
