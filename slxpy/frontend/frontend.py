@@ -35,11 +35,15 @@ def adapt_metadata(workdir: Path):
         identifier=model_class["identifier"],
         sample_time=metadata["sample_time"],
         methods=[Method(name=me["name"], doc="") for me in model_class["methods"]],
-        fields=[make_field(fi, True) for fi in model_class["fields"]],
+        fields=[
+            make_field(fi, True) for fi in model_class["fields"] if fi["name"] not in model_config.cpp.field_blacklist
+        ],
         field_mapping=model_class["field_mapping"],
         type_mapping=model_class["type_mapping"],
     )
-    types = TypeContainer([make_type(st) for st in structs], model_class_ctx)
+    types = TypeContainer(
+        [make_type(st) for st in structs if st["name"] not in model_config.cpp.type_blacklist], model_class_ctx
+    )
     module = Module(
         name=name,
         doc=doc,

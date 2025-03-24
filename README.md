@@ -454,3 +454,7 @@ So, avoid calling these four default constructors explicitly or implicitly.
 - v1.6.1.post5
   - Improve test extension scripts to also work with pytest
   - Structs are now read/write properties after pybind11 build if they are writable in the C++ code
+
+- v1.6.2.post1
+  - BREAKING: Transition to row-major on Python/numpy side by transposing on read/write operations for array bindings which are column-major on MATLAB Simulink side.
+  - Updated fork to changes from slxpy==v1.6.2

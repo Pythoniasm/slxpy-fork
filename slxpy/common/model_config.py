@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import BinaryIO, ClassVar, Literal
 
 import tomli
@@ -38,9 +38,17 @@ class CppConfig:
     class_name: str
     namespace: str
 
+    field_blacklist: list[str] = field(default_factory=list)
+    type_blacklist: list[str] = field(default_factory=list)
+
     @staticmethod
     def reconstruct(d: dict):
-        return CppConfig(class_name=d["class_name"], namespace=d["namespace"])
+        return CppConfig(
+            class_name=d["class_name"],
+            namespace=d["namespace"],
+            field_blacklist=d.get("field_blacklist", []),
+            type_blacklist=d.get("type_blacklist", []),
+        )
 
 
 @dataclass
