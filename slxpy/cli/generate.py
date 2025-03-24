@@ -58,7 +58,9 @@ def generate(ctx: click.Context, build: bool):
         import sys
 
         args = [sys.executable, "setup.py", "build"]
+        # fmt: off
         click.echo(f"Run \"{' '.join(args)}\" to build extension.")
+        # fmt: on
         cp = subprocess.run(args, cwd=workdir)
         cp.check_returncode()
         plat_specifier = get_plat_specifier()

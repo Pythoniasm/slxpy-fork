@@ -11,6 +11,7 @@ from slxpy.common.enum import FieldMode
 from slxpy.common.env_config import Config as EnvConfig
 from slxpy.common.tsort import tsort
 
+
 # NOTE: Currently nested struct hierarchy is dropped, seeking use-case and better implementation.
 
 

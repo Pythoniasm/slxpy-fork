@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+extend-select = ["I"]
+extend-ignore = ["E402","E722","E731"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2

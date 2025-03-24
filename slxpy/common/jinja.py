@@ -25,4 +25,4 @@ def _check_jinja_version():
     actual = parse_version(jinja2.__version__)
     required = parse_version("3.0")
     if actual < required:
-        raise RuntimeError(f"jinja2 version {actual} is too old. " f"Please upgrade to {required} or later.")
+        raise RuntimeError(f"jinja2 version {actual} is too old. Please upgrade to {required} or later.")

@@ -13,6 +13,7 @@ from slxpy.cli.conda import (
 )
 from slxpy.cli.utils import ensure_slxpy_project, get_plat_name, get_plat_specifier
 
+
 # Python 3.7 & Setuptools 62.0.0 leads to a bug about EXT_SUFFIX on windows
 # So, remove this version from default list
 # See: https://github.com/pypa/setuptools/issues/3219

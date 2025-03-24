@@ -41,7 +41,7 @@ def init_interactive(workdir: Path, compact: bool = False):
         Working directory: {workdir}
         Initialize config files:
             {model_cfg_path.name:<12} - Basic Simulink code generation config.
-            {' ' * (12 + 3)}Adjust [simulink] and other sections as needed.
+            {" " * (12 + 3)}Adjust [simulink] and other sections as needed.
             {env_cfg_path.name:<12} - Raw/gymnasium-like environment wrapper config.
     """
     ).strip()

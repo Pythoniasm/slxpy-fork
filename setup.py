@@ -2,6 +2,7 @@ from pathlib import Path
 
 import setuptools
 
+
 cwd = Path(__file__).parent
 package_dir = cwd / "slxpy"
 package_data = [str(f.relative_to(package_dir)) for f in (package_dir / "include").glob("**/*") if f.is_file()] + [

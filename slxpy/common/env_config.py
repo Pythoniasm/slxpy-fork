@@ -11,6 +11,7 @@ from slxpy.common.init_config import InitConfig
 from slxpy.common.mapping import dtype_mapping
 from slxpy.common.space_config import SpaceConfig
 
+
 if TYPE_CHECKING:
     from slxpy.common.context import Module
 
@@ -31,9 +32,9 @@ class GymConfig:
     @staticmethod
     def reconstruct(d: dict):
         reward_range = tuple(d["reward_range"])
-        assert len(reward_range) == 2 and all(
-            isinstance(r, (float, str)) for r in reward_range
-        ), "reward_range must be a tuple of two floats or +/-inf, not ints"
+        assert len(reward_range) == 2 and all(isinstance(r, (float, str)) for r in reward_range), (
+            "reward_range must be a tuple of two floats or +/-inf, not ints"
+        )
         return GymConfig(
             action_key=d.get("action_key", None),
             observation_key=d.get("observation_key", None),

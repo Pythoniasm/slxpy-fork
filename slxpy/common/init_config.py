@@ -5,6 +5,7 @@ import numpy as np
 
 from slxpy.common.enum import FieldMode
 
+
 if TYPE_CHECKING:
     from slxpy.common.context import Field
 
