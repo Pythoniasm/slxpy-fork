@@ -22,12 +22,18 @@ void slxpy_bind_array_field_with_shape(pybind11::class_<Class>& pb, const char *
                     // Credit to https://github.com/pybind/pybind11/issues/481
                     reinterpret_cast<pybind11::detail::PyArray_Proxy*>(arr.ptr())->flags &= pybind11::detail::npy_api::NPY_ARRAY_WRITEABLE_;
                 }
-                return arr;
+                // Transpose the MATLAB column-major array to Python numpy row-major at read-time
+                return arr.attr("T").template cast<pybind11::array_t<BaseType>>();
             },
             [](Class& obj, const pybind11::array_t<BaseType>& value) {
                 if (!readonly) {
+                    // Transpose the row-major Python numpy array to MATLAB column-major at write-time
+                    pybind11::array_t<BaseType> transposed =
+                        pybind11::reinterpret_borrow<pybind11::array_t<BaseType>>(
+                            value.attr("T").attr("copy")("C")
+                        );
                     // Access the raw data pointer of the NumPy array
-                    const BaseType* data = value.data();
+                    const BaseType* data = transposed.data();
                     // Perform the actual copy to the C++ array using std::memcpy
                     std::memcpy(&(obj.*M), data, sizeof(BaseType) * value.size());
                 }
